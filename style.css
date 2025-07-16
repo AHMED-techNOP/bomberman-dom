@@ -1,0 +1,86 @@
+body {
+  background: #181818;
+  color: #fff;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  margin: 0;
+  min-height: 100vh;
+}
+
+.welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  gap: 1.5rem;
+}
+
+.game-board-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.bomberman-board {
+  display: inline-block;
+  background: #222;
+  border: 4px solid #444;
+  border-radius: 1rem;
+  box-shadow: 0 2px 16px #0008;
+  margin: 1rem;
+}
+
+.bomberman-grid {
+  display: grid;
+  grid-template-columns: repeat(13, 32px);
+  grid-template-rows: repeat(11, 32px);
+  gap: 2px;
+}
+
+.bomberman-cell {
+  width: 32px;
+  height: 32px;
+  background: #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bomberman-wall {
+  background: #666;
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+}
+
+.bomberman-block {
+  background: #b96;
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+}
+
+.bomberman-player {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: #222;
+  font-size: 0.9em;
+}
+
+.bomberman-bomb {
+  width: 80%;
+  height: 80%;
+  background: radial-gradient(circle at 60% 40%, #fff 10%, #222 60%, #000 100%);
+  border-radius: 50%;
+  box-shadow: 0 0 8px #000a;
+  border: 2px solid #444;
+  margin: auto;
+}
