@@ -120,9 +120,6 @@ const SimpleReact = (function() {
 
     //------------------------------------------------------------
 
-
-
-
   // virtual DOM diffing
   function diff(oldNode, newNode, element) {
     // Handle null, undefined, false, true for both old and new nodes

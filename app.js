@@ -1,6 +1,28 @@
 // app.js
 // Use SimpleReact's globals directly (jsx, render, etc.)
 
+// --- Power-Up Types ---
+const POWER_UPS = [
+  {
+    type: 'bomb',
+    label: '💣',
+    description: 'Increase max bombs by 1',
+    apply: player => { player.maxBombs = (player.maxBombs || 1) + 1; }
+  },
+  {
+    type: 'flame',
+    label: '🔥',
+    description: 'Increase explosion range by 1',
+    apply: player => { player.flame = (player.flame || 1) + 1; }
+  },
+  {
+    type: 'speed',
+    label: '⚡',
+    description: 'Increase speed',
+    apply: player => { player.speed = (player.speed || 1) + 1; }
+  }
+];
+
 function App() {
   const [nickname, setNickname] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -37,7 +59,7 @@ function App() {
     // Start timer if 2+ players and timer not started
     if (playerCount >= 2 && timer === null) {
       setTimer('starting');
-      setCountdown(10);
+      setCountdown(2);
     }
   }, [playerCount, submitted, timer]);
 
@@ -122,15 +144,65 @@ function GameBoard({ nickname }) {
   const [map] = useState(createInitialMap());
   // Player state
   const [playerPos, setPlayerPos] = useState([1, 1]);
+  // Track lives and alive state for all players
+  const [playerLives, setPlayerLives] = useState(3);
+  const [playerAlive, setPlayerAlive] = useState(true); // you
+  // --- Add maxBombs state ---
+  const [maxBombs, setMaxBombs] = useState(1); // Default 1
+  // --- Add flame state for explosion range ---
+  const [flame, setFlame] = useState(1); // Default explosion range 1
+  // Track power-ups on the map: {y, x, type}
+  const [powerUps, setPowerUps] = useState([]);
+  const [otherPlayers, setOtherPlayers] = useState([
+    { name: 'P2', color: '#0ff', pos: [1,cols-2], alive: true, lives: 3 },
+    { name: 'P3', color: '#f0f', pos: [rows-2,1], alive: true, lives: 3 },
+    { name: 'P4', color: '#0f0', pos: [rows-2,cols-2], alive: true, lives: 3 },
+  ]);
   // Bomb state: array of { y, x, time } (time = Date.now() when placed)
   const [bombs, setBombs] = useState([]);
   // Explosion state: array of { y, x, time }
   const [explosions, setExplosions] = useState([]);
   // Map state for destructible blocks (mutable copy)
   const [gameMap, setGameMap] = useState(map.map(row => row.slice()));
+  // Player alive/dead state
+  const [alive, setAlive] = useState(true);
+  // Block input if dead or game over
+  const [gameOver, setGameOver] = useState(false);
+  const [win, setWin] = useState(false);
+
+  // Detect player death from explosion (now: lose a life, die if 0)
+  const [hitExplosions, setHitExplosions] = useState(new Set());
+
+  useEffect(() => {
+  if (!playerAlive || gameOver) return;
+
+  let gotHit = false;
+
+  explosions.forEach(ex => {
+    const explosionId = `${ex.y}-${ex.x}-${ex.time}`;
+    const isOnPlayer = ex.y === playerPos[0] && ex.x === playerPos[1];
+
+    if (isOnPlayer && !hitExplosions.has(explosionId)) {
+      gotHit = true;
+      setHitExplosions(new Set([...hitExplosions, explosionId]));
+    }
+  });
+
+  if (gotHit) {
+    if (playerLives > 1) {
+      setPlayerLives(playerLives - 1);
+    } else {
+      setPlayerLives(0);
+      setPlayerAlive(false);
+    }
+  }
+}, [explosions, playerPos, playerAlive, gameOver, hitExplosions, playerLives]);
+
+
 
   // Handle keyboard movement and bomb drop
   useEffect(() => {
+    if (!playerAlive || gameOver) return;
     function handleKey(e) {
       let [y, x] = playerPos;
       if (e.key === 'ArrowUp') y--;
@@ -138,16 +210,40 @@ function GameBoard({ nickname }) {
       else if (e.key === 'ArrowLeft') x--;
       else if (e.key === 'ArrowRight') x++;
       else if (e.key === ' ' || e.key === 'Spacebar') {
-        if (!bombs.some(b => b.y === playerPos[0] && b.x === playerPos[1])) {
-          setBombs(bombs => [...bombs, { y: playerPos[0], x: playerPos[1], time: Date.now() }]);
+        // --- Use nickname for bomb owner ---
+        const playerBombs = bombs.filter(b => b.owner === nickname).length;
+        if (
+          !bombs.some(b => b.y === playerPos[0] && b.x === playerPos[1]) &&
+          (maxBombs === Infinity || playerBombs < maxBombs)
+        ) {
+          setBombs(bombs => [...bombs, { y: playerPos[0], x: playerPos[1], time: Date.now(), owner: nickname }]);
         }
         return;
       }
-      if (gameMap[y] && gameMap[y][x] === 0) setPlayerPos([y, x]);
+      if (gameMap[y] && gameMap[y][x] === 0) {
+        // --- Check for power-up at new position ---
+        const puIdx = powerUps.findIndex(p => p.y === y && p.x === x);
+        if (puIdx !== -1) {
+          const pu = powerUps[puIdx];
+          // Remove power-up from map
+          setPowerUps(pus => pus.filter((_, i) => i !== puIdx));
+          // Apply power-up effect
+          if (pu.type === 'bomb') {
+            setMaxBombs(Infinity);
+          } else if (pu.type === 'flame') {
+            // Increase explosion range by 4
+            setFlame(flame => flame + 4);
+          } else if (pu.type === 'speed') {
+            // Placeholder: could increase speed
+            // setSpeed(speed => speed + 1);
+          }
+        }
+        setPlayerPos([y, x]);
+      }
     }
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [playerPos, gameMap, bombs]);
+  }, [playerPos, gameMap, bombs, playerAlive, gameOver, maxBombs, powerUps, nickname]);
 
   // Bomb explosion logic
   useEffect(() => {
@@ -161,7 +257,7 @@ function GameBoard({ nickname }) {
         // Directions: up, down, left, right
         const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
         for (let [dy, dx] of dirs) {
-          for (let i = 1; i <= 2; i++) { // Explosion range = 2
+          for (let i = 1; i <= flame; i++) { // Explosion range = flame
             const ny = bomb.y + dy*i, nx = bomb.x + dx*i;
             if (!gameMap[ny] || gameMap[ny][nx] === undefined) break;
             if (gameMap[ny][nx] === 1) break; // Wall blocks explosion
@@ -170,19 +266,53 @@ function GameBoard({ nickname }) {
           }
         }
         setExplosions(explosions => [...explosions, ...explosionCells.map(([y,x]) => ({ y, x, time: Date.now() }))]);
-        // Remove destructible blocks
+        // Remove destructible blocks and spawn power-ups
         setGameMap(gameMap => {
           const newMap = gameMap.map(row => row.slice());
+          const newPowerUps = [];
           for (let [y, x] of explosionCells) {
-            if (newMap[y][x] === 2) newMap[y][x] = 0;
+            if (newMap[y][x] === 2) {
+              newMap[y][x] = 0;
+              // --- Randomly spawn a power-up ---
+              if (Math.random() < 0.3) { // 30% chance
+                const pu = POWER_UPS[Math.floor(Math.random() * POWER_UPS.length)];
+                newPowerUps.push({ y, x, type: pu.type });
+              }
+            }
           }
+          if (newPowerUps.length > 0) setPowerUps(pus => [...pus, ...newPowerUps]);
           return newMap;
         });
+        // Check if you are hit (handled in explosion effect above)
+        // Check if other players are hit (simulate random movement for demo)
+        setOtherPlayers(players => players.map(p => {
+          if (!p.alive) return p;
+          // For demo: 10% chance to move randomly, else stay
+          let pos = p.pos;
+          if (Math.random() < 0.1) {
+            const moves = [[0,1],[0,-1],[1,0],[-1,0]];
+            for (let [dy,dx] of moves) {
+              const ny = p.pos[0]+dy, nx = p.pos[1]+dx;
+              if (gameMap[ny] && gameMap[ny][nx] === 0) {
+                pos = [ny, nx];
+                break;
+              }
+            }
+          }
+          if (explosionCells.some(([y, x]) => y === pos[0] && x === pos[1])) {
+            if (p.lives > 1) {
+              return { ...p, lives: p.lives - 1 };
+            } else {
+              return { ...p, lives: 0, alive: false };
+            }
+          }
+          return { ...p, pos };
+        }));
         setBombs(bombs => bombs.filter(b => b !== bomb));
       }, delay);
     });
     return () => timers.forEach(t => clearTimeout(t));
-  }, [bombs, gameMap]);
+  }, [bombs, gameMap, playerPos, nickname, flame]);
 
   // Remove explosion visuals after 400ms
   useEffect(() => {
@@ -197,18 +327,35 @@ function GameBoard({ nickname }) {
     return () => timers.forEach(t => clearTimeout(t));
   }, [explosions]);
 
-  // Other players (static)
+  // Win/lose logic
+  useEffect(() => {
+    const aliveOthers = otherPlayers.filter(p => p.alive).length;
+    if ((!playerAlive || playerLives === 0) && !gameOver) {
+      setGameOver(true);
+      setWin(false);
+    } else if (playerAlive && playerLives > 0 && aliveOthers === 0 && !gameOver) {
+      setGameOver(true);
+      setWin(true);
+    }
+  }, [playerAlive, playerLives, otherPlayers, gameOver]);
+
+  // All players (for rendering)
   const players = [
-    { name: nickname, color: '#ff0', pos: playerPos },
-    { name: 'P2', color: '#0ff', pos: [1,cols-2] },
-    { name: 'P3', color: '#f0f', pos: [rows-2,1] },
-    { name: 'P4', color: '#0f0', pos: [rows-2,cols-2] },
+    { name: nickname, color: '#ff0', pos: playerPos, alive: playerAlive, lives: playerLives },
+    ...otherPlayers
   ];
-  
   // Render grid
   return jsx('div', {
     className: 'bomberman-board'
   },
+    gameOver && jsx('div', {
+      className: 'game-overlay',
+      style: { zIndex: 10 }
+    },
+      jsx('h1', null, win ? 'You Win!' : 'Game Over'),
+      jsx('button', { onClick: () => window.location.reload(), style: { marginTop: '1rem', padding: '0.5rem 1.5rem', fontSize: '1.2rem', borderRadius: '0.5rem', background: '#333', color: '#fff', border: 'none' } }, 'Restart')
+    ),
+    jsx('div', { style: { marginBottom: '0.5rem', color: '#fff', fontWeight: 'bold' } }, `Lives: ${playerLives} | Bombs: ${maxBombs === Infinity ? '∞' : maxBombs} | Flame: ${flame}`),
     jsx('div', {
       className: 'bomberman-grid'
     },
@@ -226,9 +373,16 @@ function GameBoard({ nickname }) {
         if (explosion) {
           content = jsx('div', { className: 'bomberman-explosion' });
         }
+        // --- Render power-up if present ---
+        const pu = powerUps.find(p => p.y === y && p.x === x);
+        if (pu) {
+          const puDef = POWER_UPS.find(p => p.type === pu.type);
+          content = jsx('div', { className: 'bomberman-powerup' }, puDef ? puDef.label : '?');
+        }
         // Player icon
-        const player = players.find(p => p.pos[0] === y && p.pos[1] === x);
+        const player = players.find(p => p.pos[0] === y && p.pos[1] === x && p.alive);
         if (player) {
+          console.log("Player:", player.name, "Nickname:", nickname, "Match:", player.name === nickname);
           content = jsx('div', {
             className: 'bomberman-player',
             style: { background: player.color }
@@ -242,9 +396,7 @@ function GameBoard({ nickname }) {
     )
   );
 }
-
 window.App = App;
-
 document.addEventListener('DOMContentLoaded', () => {
-  render();
+    render();
 });
