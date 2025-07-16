@@ -124,6 +124,10 @@ function GameBoard({ nickname }) {
   const [playerPos, setPlayerPos] = useState([1, 1]);
   // Bomb state: array of { y, x, time } (time = Date.now() when placed)
   const [bombs, setBombs] = useState([]);
+  // Explosion state: array of { y, x, time }
+  const [explosions, setExplosions] = useState([]);
+  // Map state for destructible blocks (mutable copy)
+  const [gameMap, setGameMap] = useState(map.map(row => row.slice()));
 
   // Handle keyboard movement and bomb drop
   useEffect(() => {
@@ -134,31 +138,64 @@ function GameBoard({ nickname }) {
       else if (e.key === 'ArrowLeft') x--;
       else if (e.key === 'ArrowRight') x++;
       else if (e.key === ' ' || e.key === 'Spacebar') {
-        // Drop bomb if not already present at this cell
         if (!bombs.some(b => b.y === playerPos[0] && b.x === playerPos[1])) {
           setBombs(bombs => [...bombs, { y: playerPos[0], x: playerPos[1], time: Date.now() }]);
         }
         return;
       }
-      // Check bounds and collisions
-      if (map[y] && map[y][x] === 0) setPlayerPos([y, x]);
+      if (gameMap[y] && gameMap[y][x] === 0) setPlayerPos([y, x]);
     }
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [playerPos, map, bombs]);
+  }, [playerPos, gameMap, bombs]);
 
-  // Remove bomb after 2 seconds (no explosion yet)
+  // Bomb explosion logic
   useEffect(() => {
     if (bombs.length === 0) return;
     const now = Date.now();
     const timers = bombs.map(bomb => {
       const delay = Math.max(0, 2000 - (now - bomb.time));
       return setTimeout(() => {
+        // Explosion logic
+        const explosionCells = [[bomb.y, bomb.x]];
+        // Directions: up, down, left, right
+        const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+        for (let [dy, dx] of dirs) {
+          for (let i = 1; i <= 2; i++) { // Explosion range = 2
+            const ny = bomb.y + dy*i, nx = bomb.x + dx*i;
+            if (!gameMap[ny] || gameMap[ny][nx] === undefined) break;
+            if (gameMap[ny][nx] === 1) break; // Wall blocks explosion
+            explosionCells.push([ny, nx]);
+            if (gameMap[ny][nx] === 2) break; // Stop at destructible block
+          }
+        }
+        setExplosions(explosions => [...explosions, ...explosionCells.map(([y,x]) => ({ y, x, time: Date.now() }))]);
+        // Remove destructible blocks
+        setGameMap(gameMap => {
+          const newMap = gameMap.map(row => row.slice());
+          for (let [y, x] of explosionCells) {
+            if (newMap[y][x] === 2) newMap[y][x] = 0;
+          }
+          return newMap;
+        });
         setBombs(bombs => bombs.filter(b => b !== bomb));
       }, delay);
     });
     return () => timers.forEach(t => clearTimeout(t));
-  }, [bombs]);
+  }, [bombs, gameMap]);
+
+  // Remove explosion visuals after 400ms
+  useEffect(() => {
+    if (explosions.length === 0) return;
+    const now = Date.now();
+    const timers = explosions.map(ex => {
+      const delay = Math.max(0, 400 - (now - ex.time));
+      return setTimeout(() => {
+        setExplosions(explosions => explosions.filter(e => e !== ex));
+      }, delay);
+    });
+    return () => timers.forEach(t => clearTimeout(t));
+  }, [explosions]);
 
   // Other players (static)
   const players = [
@@ -175,7 +212,7 @@ function GameBoard({ nickname }) {
     jsx('div', {
       className: 'bomberman-grid'
     },
-      ...map.reduce((acc, row, y) => acc.concat(row.map((cell, x) => {
+      ...gameMap.reduce((acc, row, y) => acc.concat(row.map((cell, x) => {
         let content = null;
         if (cell === 1) content = jsx('div', { className: 'bomberman-wall' });
         else if (cell === 2) content = jsx('div', { className: 'bomberman-block' });
@@ -183,6 +220,11 @@ function GameBoard({ nickname }) {
         const bomb = bombs.find(b => b.y === y && b.x === x);
         if (bomb) {
           content = jsx('div', { className: 'bomberman-bomb' });
+        }
+        // Explosion
+        const explosion = explosions.find(e => e.y === y && e.x === x);
+        if (explosion) {
+          content = jsx('div', { className: 'bomberman-explosion' });
         }
         // Player icon
         const player = players.find(p => p.pos[0] === y && p.pos[1] === x);
