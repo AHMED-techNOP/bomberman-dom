@@ -48,16 +48,22 @@ function App() {
   const [timer, setTimer] = useState(null); // null means not started
   const [countdown, setCountdown] = useState(10);
 
-  useEffect(() => {
-    if (!submitted) return;
-    // Simulate other players joining every 1s up to 4
-    if (playerCount < 4) {
-      const joinInterval = setInterval(() => {
-        setPlayerCount(c => Math.min(4, c + 1));
-      }, 1000);
-      return () => clearInterval(joinInterval);
-    }
-  }, [submitted, playerCount]);
+ useEffect(() => {
+  if (!submitted) return;
+
+  const joinInterval = setInterval(() => {
+    setPlayerCount(c => {
+      if (c >= 4) {
+        clearInterval(joinInterval);
+        return c;
+      }
+      return c + 1;
+    });
+  }, 1000);
+
+  return () => clearInterval(joinInterval);
+}, [submitted]); // ✅ no need for playerCount here
+
 
   useEffect(() => {
     if (!submitted) return;
