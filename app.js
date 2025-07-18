@@ -2,6 +2,7 @@
 // Use SimpleReact's globals directly (jsx, render, etc.)
 
 // --- Power-Up Types ---
+
 const POWER_UPS = [
   {
     type: 'bomb',
@@ -22,6 +23,9 @@ const POWER_UPS = [
     apply: player => { player.speed = (player.speed || 1) + 1; }
   }
 ];
+
+
+//  ------------------------------------------------------------------------------------------------
 
 function App() {
   const [nickname, setNickname] = useState('');
@@ -109,6 +113,10 @@ function App() {
   );
 }
 
+
+//  ------------------------------------------------------------------------------------------------
+
+
 // --- Game Board Component ---
 function GameBoard({ nickname }) {
   const cols = 13, rows = 11;
@@ -151,6 +159,13 @@ function GameBoard({ nickname }) {
   const [maxBombs, setMaxBombs] = useState(1); // Default 1
   // --- Add flame state for explosion range ---
   const [flame, setFlame] = useState(1); // Default explosion range 1
+  // --- Add pixel position state for smooth movement ---
+  const cellSize = 32; // px
+  const gap = 2; // px, matches CSS
+  const [pixelPos, setPixelPos] = useState({ x: playerPos[1] * (cellSize + gap), y: playerPos[0] * (cellSize + gap) });
+  // --- Add movement direction and moving state ---
+  const [moveDir, setMoveDir] = useState(null); // 'up', 'down', 'left', 'right', or null
+  const [moving, setMoving] = useState(false);
   // Track power-ups on the map: {y, x, type}
   const [powerUps, setPowerUps] = useState([]);
   const [otherPlayers, setOtherPlayers] = useState([
@@ -200,15 +215,21 @@ function GameBoard({ nickname }) {
 
 
 
+//  ------------------------------------------------------------------------------------------------
+
+
+
+
   // Handle keyboard movement and bomb drop
   useEffect(() => {
     if (!playerAlive || gameOver) return;
     function handleKey(e) {
-      let [y, x] = playerPos;
-      if (e.key === 'ArrowUp') y--;
-      else if (e.key === 'ArrowDown') y++;
-      else if (e.key === 'ArrowLeft') x--;
-      else if (e.key === 'ArrowRight') x++;
+      if (moving) return; // Ignore input while moving
+      let dir = null;
+      if (e.key === 'ArrowUp') dir = 'up';
+      else if (e.key === 'ArrowDown') dir = 'down';
+      else if (e.key === 'ArrowLeft') dir = 'left';
+      else if (e.key === 'ArrowRight') dir = 'right';
       else if (e.key === ' ' || e.key === 'Spacebar') {
         // --- Use nickname for bomb owner ---
         const playerBombs = bombs.filter(b => b.owner === nickname).length;
@@ -219,10 +240,57 @@ function GameBoard({ nickname }) {
           setBombs(bombs => [...bombs, { y: playerPos[0], x: playerPos[1], time: Date.now(), owner: nickname }]);
         }
         return;
+      } else {
+        return;
       }
-      if (gameMap[y] && gameMap[y][x] === 0) {
+      if (dir) {
+        setMoveDir(dir);
+      }
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [playerPos, gameMap, bombs, playerAlive, gameOver, maxBombs, powerUps, nickname, moving]);
+
+
+  //  ------------------------------------------------------------------------------------------------
+
+
+  // Animate movement with requestAnimationFrame
+  useEffect(() => {
+    if (!moveDir || moving) return;
+    let [y, x] = playerPos;
+    let targetY = y, targetX = x;
+    if (moveDir === 'up') targetY--;
+    else if (moveDir === 'down') targetY++;
+    else if (moveDir === 'left') targetX--;
+    else if (moveDir === 'right') targetX++;
+    // Check bounds and collision
+    if (!(gameMap[targetY] && gameMap[targetY][targetX] === 0)) {
+      setMoveDir(null);
+      return;
+    }
+    setMoving(true);
+    const start = { ...pixelPos };
+    const end = {
+      x: targetX * (cellSize + gap),
+      y: targetY * (cellSize + gap)
+    };
+    const duration = 120; // ms, can be adjusted for speed
+    const startTime = performance.now();
+    function animate(now) {
+      const elapsed = now - startTime;
+      const t = Math.min(1, elapsed / duration);
+      setPixelPos({
+        x: start.x + (end.x - start.x) * t,
+        y: start.y + (end.y - start.y) * t
+      });
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        // Snap to grid, update logical position
+        setPlayerPos([targetY, targetX]);
         // --- Check for power-up at new position ---
-        const puIdx = powerUps.findIndex(p => p.y === y && p.x === x);
+        const puIdx = powerUps.findIndex(p => p.y === targetY && p.x === targetX);
         if (puIdx !== -1) {
           const pu = powerUps[puIdx];
           // Remove power-up from map
@@ -238,12 +306,17 @@ function GameBoard({ nickname }) {
             // setSpeed(speed => speed + 1);
           }
         }
-        setPlayerPos([y, x]);
+        setMoving(false);
+        setMoveDir(null);
       }
     }
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [playerPos, gameMap, bombs, playerAlive, gameOver, maxBombs, powerUps, nickname]);
+    requestAnimationFrame(animate);
+    // eslint-disable-next-line
+  }, [moveDir]);
+
+
+  //  ------------------------------------------------------------------------------------------------
+
 
   // Bomb explosion logic
   useEffect(() => {
@@ -314,6 +387,10 @@ function GameBoard({ nickname }) {
     return () => timers.forEach(t => clearTimeout(t));
   }, [bombs, gameMap, playerPos, nickname, flame]);
 
+
+  //  ------------------------------------------------------------------------------------------------
+
+
   // Remove explosion visuals after 400ms
   useEffect(() => {
     if (explosions.length === 0) return;
@@ -327,6 +404,10 @@ function GameBoard({ nickname }) {
     return () => timers.forEach(t => clearTimeout(t));
   }, [explosions]);
 
+
+  //  ------------------------------------------------------------------------------------------------
+
+
   // Win/lose logic
   useEffect(() => {
     const aliveOthers = otherPlayers.filter(p => p.alive).length;
@@ -339,12 +420,29 @@ function GameBoard({ nickname }) {
     }
   }, [playerAlive, playerLives, otherPlayers, gameOver]);
 
+  //  ------------------------------------------------------------------------------------------------
+
+
   // All players (for rendering)
   const players = [
     { name: nickname, color: '#ff0', pos: playerPos, alive: playerAlive, lives: playerLives },
     ...otherPlayers
   ];
+
+  //  ------------------------------------------------------------------------------------------------
+
+  // Update pixel position when playerPos changes (snap to grid)
+  useEffect(() => {
+    setTimeout(() => {
+      setPixelPos({ x: playerPos[1] * (cellSize + gap), y: playerPos[0] * (cellSize + gap) });
+    }, 0);
+  }, [playerPos]);
   // Render grid
+
+
+
+  // ------------------------------------------------------------------------------------------------
+
   return jsx('div', {
     className: 'bomberman-board'
   },
@@ -357,8 +455,18 @@ function GameBoard({ nickname }) {
     ),
     jsx('div', { style: { marginBottom: '0.5rem', color: '#fff', fontWeight: 'bold' } }, `Lives: ${playerLives} | Bombs: ${maxBombs === Infinity ? '∞' : maxBombs} | Flame: ${flame}`),
     jsx('div', {
-      className: 'bomberman-grid'
+      className: 'bomberman-grid',
+      
     },
+      // --- Absolutely positioned player ---
+      jsx('div', {
+        className: 'bomberman-player-abs',
+        style: {
+          background: '#ff0',
+          transform: `translate(${pixelPos.x}px, ${pixelPos.y}px)`
+        }
+      }, 'You'),
+      // --- Render the rest of the grid as before ---
       ...gameMap.reduce((acc, row, y) => acc.concat(row.map((cell, x) => {
         let content = null;
         if (cell === 1) content = jsx('div', { className: 'bomberman-wall' });
@@ -379,14 +487,13 @@ function GameBoard({ nickname }) {
           const puDef = POWER_UPS.find(p => p.type === pu.type);
           content = jsx('div', { className: 'bomberman-powerup' }, puDef ? puDef.label : '?');
         }
-        // Player icon
-        const player = players.find(p => p.pos[0] === y && p.pos[1] === x && p.alive);
+        // Player icon (for other players only)
+        const player = players.find(p => p.pos[0] === y && p.pos[1] === x && p.alive && p.name !== nickname);
         if (player) {
-          console.log("Player:", player.name, "Nickname:", nickname, "Match:", player.name === nickname);
           content = jsx('div', {
             className: 'bomberman-player',
             style: { background: player.color }
-          }, player.name === nickname ? 'You' : player.name);
+          }, player.name);
         }
         return jsx('div', {
           key: `${y}-${x}`,
