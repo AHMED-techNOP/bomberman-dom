@@ -2,6 +2,7 @@
 // Use SimpleReact's globals directly (jsx, render, etc.)
 
 // --- Power-Up Types ---
+
 const POWER_UPS = [
   {
     type: 'bomb',
@@ -23,47 +24,39 @@ const POWER_UPS = [
   }
 ];
 
+
+//  ------------------------------------------------------------------------------------------------
+
 function App() {
   const [nickname, setNickname] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
 
-  function handleSubmit(event) {
-    event.preventDefault(); // prevent page reload
-    const input = event.target.elements.nickname;
-    const nicknameValue = input.value.trim();
-
-    if (nicknameValue.length === 0) {
-      setError('Nickname cannot be empty');
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (!nickname.trim()) {
+      setError('Please enter a nickname.');
       return;
     }
-
-    setNickname(nicknameValue); // set it only on submit
-    setSubmitted(true); // or whatever follows
+    setError('');
+    setSubmitted(true);
   }
-
 
   // Simulated waiting room logic
   const [playerCount, setPlayerCount] = useState(1); // Start with 1 (yourself)
   const [timer, setTimer] = useState(null); // null means not started
   const [countdown, setCountdown] = useState(10);
 
- useEffect(() => {
-  if (!submitted) return;
-
-  const joinInterval = setInterval(() => {
-    setPlayerCount(c => {
-      if (c >= 4) {
-        clearInterval(joinInterval);
-        return c;
-      }
-      return c + 1;
-    });
-  }, 1000);
-
-  return () => clearInterval(joinInterval);
-}, [submitted]); // ✅ no need for playerCount here
-
+  useEffect(() => {
+    if (!submitted) return;
+    // Simulate other players joining every 1s up to 4
+    if (playerCount < 4) {
+      const joinInterval = setInterval(() => {
+        setPlayerCount(c => Math.min(4, c + 1));
+      }, 1000);
+      return () => clearInterval(joinInterval);
+    }
+  }, [submitted, playerCount]);
 
   useEffect(() => {
     if (!submitted) return;
@@ -99,6 +92,7 @@ function App() {
           id: 'nickname',
           type: 'text',
           value: nickname,
+          onInput: e => setNickname(e.target.value),
           autoFocus: true,
           maxLength: 16,
           required: true,
@@ -119,6 +113,10 @@ function App() {
   );
 }
 
+
+//  ------------------------------------------------------------------------------------------------
+
+
 // --- Game Board Component ---
 function GameBoard({ nickname }) {
   const cols = 13, rows = 11;
@@ -128,9 +126,9 @@ function GameBoard({ nickname }) {
     for (let y = 0; y < rows; y++) {
       const row = [];
       for (let x = 0; x < cols; x++) {
-        if (x === 0 || y === 0 || x === cols - 1 || y === rows - 1) row.push(1);
+        if (x === 0 || y === 0 || x === cols-1 || y === rows-1) row.push(1);
         else if (x % 2 === 0 && y % 2 === 0) row.push(1);
-        else if ((x <= 1 && y <= 1) || (x >= cols - 2 && y <= 1) || (x <= 1 && y >= rows - 2) || (x >= cols - 2 && y >= rows - 2)) row.push(0);
+        else if ((x <= 1 && y <= 1) || (x >= cols-2 && y <= 1) || (x <= 1 && y >= rows-2) || (x >= cols-2 && y >= rows-2)) row.push(0);
         else row.push(Math.random() < 0.6 ? 2 : 0);
       }
       m.push(row);
@@ -140,14 +138,14 @@ function GameBoard({ nickname }) {
     m[1][2] = 0; // right of [1,1]
     m[2][1] = 0; // below [1,1]
     // Top-right player
-    m[1][cols - 3] = 0; // left of [1,cols-2]
-    m[2][cols - 2] = 0; // below [1,cols-2]
+    m[1][cols-3] = 0; // left of [1,cols-2]
+    m[2][cols-2] = 0; // below [1,cols-2]
     // Bottom-left player
-    m[rows - 3][1] = 0; // above [rows-2,1]
-    m[rows - 2][2] = 0; // right of [rows-2,1]
+    m[rows-3][1] = 0; // above [rows-2,1]
+    m[rows-2][2] = 0; // right of [rows-2,1]
     // Bottom-right player
-    m[rows - 3][cols - 2] = 0; // above [rows-2,cols-2]
-    m[rows - 2][cols - 3] = 0; // left of [rows-2,cols-2]
+    m[rows-3][cols-2] = 0; // above [rows-2,cols-2]
+    m[rows-2][cols-3] = 0; // left of [rows-2,cols-2]
     return m;
   }
   // Defensive map initialization: always ensure array
@@ -161,12 +159,19 @@ function GameBoard({ nickname }) {
   const [maxBombs, setMaxBombs] = useState(1); // Default 1
   // --- Add flame state for explosion range ---
   const [flame, setFlame] = useState(1); // Default explosion range 1
+  // --- Add pixel position state for smooth movement ---
+  const cellSize = 32; // px
+  const gap = 2; // px, matches CSS
+  const [pixelPos, setPixelPos] = useState({ x: playerPos[1] * (cellSize + gap), y: playerPos[0] * (cellSize + gap) });
+  // --- Add movement direction and moving state ---
+  const [moveDir, setMoveDir] = useState(null); // 'up', 'down', 'left', 'right', or null
+  const [moving, setMoving] = useState(false);
   // Track power-ups on the map: {y, x, type}
   const [powerUps, setPowerUps] = useState([]);
   const [otherPlayers, setOtherPlayers] = useState([
-    { name: 'P2', color: '#0ff', pos: [1, cols - 2], alive: true, lives: 3 },
-    { name: 'P3', color: '#f0f', pos: [rows - 2, 1], alive: true, lives: 3 },
-    { name: 'P4', color: '#0f0', pos: [rows - 2, cols - 2], alive: true, lives: 3 },
+    { name: 'P2', color: '#0ff', pos: [1,cols-2], alive: true, lives: 3 },
+    { name: 'P3', color: '#f0f', pos: [rows-2,1], alive: true, lives: 3 },
+    { name: 'P4', color: '#0f0', pos: [rows-2,cols-2], alive: true, lives: 3 },
   ]);
   // Bomb state: array of { y, x, time } (time = Date.now() when placed)
   const [bombs, setBombs] = useState([]);
@@ -184,29 +189,34 @@ function GameBoard({ nickname }) {
   const [hitExplosions, setHitExplosions] = useState(new Set());
 
   useEffect(() => {
-    if (!playerAlive || gameOver) return;
+  if (!playerAlive || gameOver) return;
 
-    let gotHit = false;
+  let gotHit = false;
 
-    explosions.forEach(ex => {
-      const explosionId = `${ex.y}-${ex.x}-${ex.time}`;
-      const isOnPlayer = ex.y === playerPos[0] && ex.x === playerPos[1];
+  explosions.forEach(ex => {
+    const explosionId = `${ex.y}-${ex.x}-${ex.time}`;
+    const isOnPlayer = ex.y === playerPos[0] && ex.x === playerPos[1];
 
-      if (isOnPlayer && !hitExplosions.has(explosionId)) {
-        gotHit = true;
-        setHitExplosions(new Set([...hitExplosions, explosionId]));
-      }
-    });
-
-    if (gotHit) {
-      if (playerLives > 1) {
-        setPlayerLives(playerLives - 1);
-      } else {
-        setPlayerLives(0);
-        setPlayerAlive(false);
-      }
+    if (isOnPlayer && !hitExplosions.has(explosionId)) {
+      gotHit = true;
+      setHitExplosions(new Set([...hitExplosions, explosionId]));
     }
-  }, [explosions, playerPos, playerAlive, gameOver, hitExplosions, playerLives]);
+  });
+
+  if (gotHit) {
+    if (playerLives > 1) {
+      setPlayerLives(playerLives - 1);
+    } else {
+      setPlayerLives(0);
+      setPlayerAlive(false);
+    }
+  }
+}, [explosions, playerPos, playerAlive, gameOver, hitExplosions, playerLives]);
+
+
+
+//  ------------------------------------------------------------------------------------------------
+
 
 
 
@@ -214,11 +224,12 @@ function GameBoard({ nickname }) {
   useEffect(() => {
     if (!playerAlive || gameOver) return;
     function handleKey(e) {
-      let [y, x] = playerPos;
-      if (e.key === 'ArrowUp') y--;
-      else if (e.key === 'ArrowDown') y++;
-      else if (e.key === 'ArrowLeft') x--;
-      else if (e.key === 'ArrowRight') x++;
+      if (moving) return; // Ignore input while moving
+      let dir = null;
+      if (e.key === 'ArrowUp') dir = 'up';
+      else if (e.key === 'ArrowDown') dir = 'down';
+      else if (e.key === 'ArrowLeft') dir = 'left';
+      else if (e.key === 'ArrowRight') dir = 'right';
       else if (e.key === ' ' || e.key === 'Spacebar') {
         // --- Use nickname for bomb owner ---
         const playerBombs = bombs.filter(b => b.owner === nickname).length;
@@ -229,10 +240,57 @@ function GameBoard({ nickname }) {
           setBombs(bombs => [...bombs, { y: playerPos[0], x: playerPos[1], time: Date.now(), owner: nickname }]);
         }
         return;
+      } else {
+        return;
       }
-      if (gameMap[y] && gameMap[y][x] === 0) {
+      if (dir) {
+        setMoveDir(dir);
+      }
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [playerPos, gameMap, bombs, playerAlive, gameOver, maxBombs, powerUps, nickname, moving]);
+
+
+  //  ------------------------------------------------------------------------------------------------
+
+
+  // Animate movement with requestAnimationFrame
+  useEffect(() => {
+    if (!moveDir || moving) return;
+    let [y, x] = playerPos;
+    let targetY = y, targetX = x;
+    if (moveDir === 'up') targetY--;
+    else if (moveDir === 'down') targetY++;
+    else if (moveDir === 'left') targetX--;
+    else if (moveDir === 'right') targetX++;
+    // Check bounds and collision
+    if (!(gameMap[targetY] && gameMap[targetY][targetX] === 0)) {
+      setMoveDir(null);
+      return;
+    }
+    setMoving(true);
+    const start = { ...pixelPos };
+    const end = {
+      x: targetX * (cellSize + gap),
+      y: targetY * (cellSize + gap)
+    };
+    const duration = 120; // ms, can be adjusted for speed
+    const startTime = performance.now();
+    function animate(now) {
+      const elapsed = now - startTime;
+      const t = Math.min(1, elapsed / duration);
+      setPixelPos({
+        x: start.x + (end.x - start.x) * t,
+        y: start.y + (end.y - start.y) * t
+      });
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        // Snap to grid, update logical position
+        setPlayerPos([targetY, targetX]);
         // --- Check for power-up at new position ---
-        const puIdx = powerUps.findIndex(p => p.y === y && p.x === x);
+        const puIdx = powerUps.findIndex(p => p.y === targetY && p.x === targetX);
         if (puIdx !== -1) {
           const pu = powerUps[puIdx];
           // Remove power-up from map
@@ -248,12 +306,17 @@ function GameBoard({ nickname }) {
             // setSpeed(speed => speed + 1);
           }
         }
-        setPlayerPos([y, x]);
+        setMoving(false);
+        setMoveDir(null);
       }
     }
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [playerPos, gameMap, bombs, playerAlive, gameOver, maxBombs, powerUps, nickname]);
+    requestAnimationFrame(animate);
+    // eslint-disable-next-line
+  }, [moveDir]);
+
+
+  //  ------------------------------------------------------------------------------------------------
+
 
   // Bomb explosion logic
   useEffect(() => {
@@ -265,17 +328,17 @@ function GameBoard({ nickname }) {
         // Explosion logic
         const explosionCells = [[bomb.y, bomb.x]];
         // Directions: up, down, left, right
-        const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+        const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
         for (let [dy, dx] of dirs) {
           for (let i = 1; i <= flame; i++) { // Explosion range = flame
-            const ny = bomb.y + dy * i, nx = bomb.x + dx * i;
+            const ny = bomb.y + dy*i, nx = bomb.x + dx*i;
             if (!gameMap[ny] || gameMap[ny][nx] === undefined) break;
             if (gameMap[ny][nx] === 1) break; // Wall blocks explosion
             explosionCells.push([ny, nx]);
             if (gameMap[ny][nx] === 2) break; // Stop at destructible block
           }
         }
-        setExplosions(explosions => [...explosions, ...explosionCells.map(([y, x]) => ({ y, x, time: Date.now() }))]);
+        setExplosions(explosions => [...explosions, ...explosionCells.map(([y,x]) => ({ y, x, time: Date.now() }))]);
         // Remove destructible blocks and spawn power-ups
         setGameMap(gameMap => {
           const newMap = gameMap.map(row => row.slice());
@@ -300,9 +363,9 @@ function GameBoard({ nickname }) {
           // For demo: 10% chance to move randomly, else stay
           let pos = p.pos;
           if (Math.random() < 0.1) {
-            const moves = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-            for (let [dy, dx] of moves) {
-              const ny = p.pos[0] + dy, nx = p.pos[1] + dx;
+            const moves = [[0,1],[0,-1],[1,0],[-1,0]];
+            for (let [dy,dx] of moves) {
+              const ny = p.pos[0]+dy, nx = p.pos[1]+dx;
               if (gameMap[ny] && gameMap[ny][nx] === 0) {
                 pos = [ny, nx];
                 break;
@@ -324,6 +387,10 @@ function GameBoard({ nickname }) {
     return () => timers.forEach(t => clearTimeout(t));
   }, [bombs, gameMap, playerPos, nickname, flame]);
 
+
+  //  ------------------------------------------------------------------------------------------------
+
+
   // Remove explosion visuals after 400ms
   useEffect(() => {
     if (explosions.length === 0) return;
@@ -337,6 +404,10 @@ function GameBoard({ nickname }) {
     return () => timers.forEach(t => clearTimeout(t));
   }, [explosions]);
 
+
+  //  ------------------------------------------------------------------------------------------------
+
+
   // Win/lose logic
   useEffect(() => {
     const aliveOthers = otherPlayers.filter(p => p.alive).length;
@@ -349,12 +420,29 @@ function GameBoard({ nickname }) {
     }
   }, [playerAlive, playerLives, otherPlayers, gameOver]);
 
+  //  ------------------------------------------------------------------------------------------------
+
+
   // All players (for rendering)
   const players = [
     { name: nickname, color: '#ff0', pos: playerPos, alive: playerAlive, lives: playerLives },
     ...otherPlayers
   ];
+
+  //  ------------------------------------------------------------------------------------------------
+
+  // Update pixel position when playerPos changes (snap to grid)
+  useEffect(() => {
+    setTimeout(() => {
+      setPixelPos({ x: playerPos[1] * (cellSize + gap), y: playerPos[0] * (cellSize + gap) });
+    }, 0);
+  }, [playerPos]);
   // Render grid
+
+
+
+  // ------------------------------------------------------------------------------------------------
+
   return jsx('div', {
     className: 'bomberman-board'
   },
@@ -367,8 +455,18 @@ function GameBoard({ nickname }) {
     ),
     jsx('div', { style: { marginBottom: '0.5rem', color: '#fff', fontWeight: 'bold' } }, `Lives: ${playerLives} | Bombs: ${maxBombs === Infinity ? '∞' : maxBombs} | Flame: ${flame}`),
     jsx('div', {
-      className: 'bomberman-grid'
+      className: 'bomberman-grid',
+      
     },
+      // --- Absolutely positioned player ---
+      jsx('div', {
+        className: 'bomberman-player-abs',
+        style: {
+          background: '#ff0',
+          transform: `translate(${pixelPos.x}px, ${pixelPos.y}px)`
+        }
+      }, 'You'),
+      // --- Render the rest of the grid as before ---
       ...gameMap.reduce((acc, row, y) => acc.concat(row.map((cell, x) => {
         let content = null;
         if (cell === 1) content = jsx('div', { className: 'bomberman-wall' });
@@ -389,14 +487,13 @@ function GameBoard({ nickname }) {
           const puDef = POWER_UPS.find(p => p.type === pu.type);
           content = jsx('div', { className: 'bomberman-powerup' }, puDef ? puDef.label : '?');
         }
-        // Player icon
-        const player = players.find(p => p.pos[0] === y && p.pos[1] === x && p.alive);
+        // Player icon (for other players only)
+        const player = players.find(p => p.pos[0] === y && p.pos[1] === x && p.alive && p.name !== nickname);
         if (player) {
-          console.log("Player:", player.name, "Nickname:", nickname, "Match:", player.name === nickname);
           content = jsx('div', {
             className: 'bomberman-player',
             style: { background: player.color }
-          }, player.name === nickname ? 'You' : player.name);
+          }, player.name);
         }
         return jsx('div', {
           key: `${y}-${x}`,
@@ -408,5 +505,5 @@ function GameBoard({ nickname }) {
 }
 window.App = App;
 document.addEventListener('DOMContentLoaded', () => {
-  render();
+    render();
 });
