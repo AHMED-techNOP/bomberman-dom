@@ -34,11 +34,14 @@ function App() {
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (!nickname.trim()) {
-      setError('Please enter a nickname.');
+    const input = e.target.elements.nickname;
+    const nicknameValue = input.value.trim();
+    if (nicknameValue.length === 0) {
+      setError('Nickname cannot be empty');
       return;
     }
     setError('');
+    setNickname(nicknameValue);
     setSubmitted(true);
   }
 
@@ -63,14 +66,19 @@ function App() {
 
   useEffect(() => {
     if (!submitted) return;
-    // Simulate other players joining every 1s up to 4
-    if (playerCount < 4) {
-      const joinInterval = setInterval(() => {
-        setPlayerCount(c => Math.min(4, c + 1));
-      }, 1000);
-      return () => clearInterval(joinInterval);
-    }
-  }, [submitted, playerCount]);
+
+    const joinInterval = setInterval(() => {
+      setPlayerCount(c => {
+        if (c >= 4) {
+          clearInterval(joinInterval);
+          return c;
+        }
+        return c + 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(joinInterval);
+  }, [submitted]); // ✅ no need for playerCount here
 
   useEffect(() => {
     if (!submitted) return;
@@ -106,7 +114,6 @@ function App() {
           id: 'nickname',
           type: 'text',
           value: nickname,
-          onInput: e => setNickname(e.target.value),
           autoFocus: true,
           maxLength: 16,
           required: true,
@@ -443,6 +450,35 @@ function GameBoard({ nickname }) {
     ...otherPlayers
   ];
 
+  const [playerImage, setPlayerImage] = useState('run-right');
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'ArrowLeft') {
+        setPlayerImage('run-left');
+      }
+      if (e.key === 'ArrowRight') {
+        setPlayerImage('run-right');
+      }
+      if (e.key === 'ArrowDown') {
+        setPlayerImage('run-down');
+      }
+      if (e.key === 'ArrowUp') {
+        setPlayerImage('run-up');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyup => {
+      if (handleKeyup.key === 'ArrowLeft' || handleKeyup.key === 'ArrowRight') {
+        setPlayerImage('run-down'); // Default to down when not moving
+      }
+    })
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
   //  ------------------------------------------------------------------------------------------------
 
   // Update pixel position when playerPos changes (snap to grid)
@@ -476,10 +512,10 @@ function GameBoard({ nickname }) {
       jsx('div', {
         className: 'bomberman-player-abs',
         style: {
-          background: '#ff0',
+          backgroundImage: `url("../assets/${playerImage}.gif")`,
           transform: `translate(${pixelPos.x}px, ${pixelPos.y}px)`
         }
-      }, 'You'),
+      },),
       // --- Render the rest of the grid as before ---
       ...gameMap.reduce((acc, row, y) => acc.concat(row.map((cell, x) => {
         let content = null;
@@ -506,7 +542,12 @@ function GameBoard({ nickname }) {
         if (player) {
           content = jsx('div', {
             className: 'bomberman-player',
-            style: { background: player.color }
+            style: {
+              background: player.color,
+              backgroundImage: player.name === nickname
+                ? `url("./assets/${playerImage}.gif")`
+                : 'none'
+            }
           }, player.name);
         }
         return jsx('div', {
