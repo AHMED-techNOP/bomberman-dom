@@ -16,28 +16,18 @@ function connectWebSocket(name, onMessage) {
 }
 
 
-function handleSocketMessage(data) {
+// function handleSocketMessage(data) {
 
-    if (data.type === 'join') {
-        console.log(`${data.nickname} joined`)
-    }
+//     if (data.type === 'join') {
+//         console.log(`${data.nickname} joined`)
+//     }
 
-    if (data.type === 'chat' && data.nickname !== nickname) {
-        addChatMessage(data.nickname, data.message)
-    }
+//     if (data.type === 'chat' && data.nickname !== nickname) {
+//         addChatMessage(data.nickname, data.message)
+//     }
 
-}
+// }
 
-
-const chatMessages = document.getElementById('chat-messages')
-const chatInput = document.getElementById('chat-input')
-
-function addChatMessage(nick, msg) {
-    const div = document.createElement('div')
-    div.textContent = `${nick}: ${msg}`
-    chatMessages.appendChild(div)
-    chatMessages.scrollTop = chatMessages.scrollHeight
-}
 
 function sendChatMessage(text) {
     if (socket && socket.readyState === WebSocket.OPEN) {
@@ -45,13 +35,26 @@ function sendChatMessage(text) {
     }
 }
 
-chatInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-        const text = chatInput.value.trim()
-        if (text) {
-            sendChatMessage(text)
-            addChatMessage(nickname, text)
-            chatInput.value = ''
-        }
-    }
-})
+
+// const chatMessages = document.getElementById('chat-messages')
+// const chatInput = document.getElementById('chat-input')
+
+// function addChatMessage(nick, msg) {
+//     const div = document.createElement('div')
+//     div.textContent = `${nick}: ${msg}`
+//     chatMessages.appendChild(div)
+//     chatMessages.scrollTop = chatMessages.scrollHeight
+// }
+
+
+
+// chatInput.addEventListener('keydown', (e) => {
+//     if (e.key === 'Enter') {
+//         const text = chatInput.value.trim()
+//         if (text) {
+//             sendChatMessage(text)
+//             addChatMessage(nickname, text)
+//             chatInput.value = ''
+//         }
+//     }
+// })

@@ -33,6 +33,8 @@ function App() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
 
+  const [messages, setMessages] = useState([])
+
   function handleSubmit(e) {
     e.preventDefault();
     const input = e.target.elements.nickname;
@@ -47,16 +49,40 @@ function App() {
     navigate("#/lobby")
   }
 
+  function handelMessage(e) {
+    if (e.key === 'Enter') {
+      const text = e.target.value.trim()
+      if (text) {
+        sendChatMessage(text)
+        e.target.value = ''
+      }
+    }
+  }
 
-  const container = document.getElementById("chat-container")
 
-  if (submitted) {
+  function handleSocketMessage(data) {
 
-    container.style.display = "block"
+    if (data.type === 'join') {
+      console.log(`${data.nickname} joined`)
+    }
 
-    useEffect(() => {
+    if (data.type === 'chat') {
+      const msg = `${data.nickname}: ${data.message}`
+      setMessages(prev => [...prev, msg])
+    }
+
+  }
+
+
+  useEffect(() => {
+    if (submitted) {
       connectWebSocket(nickname, handleSocketMessage)
-    }, [submitted])
+    }
+  }, [submitted])
+
+
+  function showMsg(msg) {
+    return jsx("div", null, `${msg}`)
   }
 
 
@@ -96,7 +122,7 @@ function App() {
       const t = setTimeout(() => setCountdown(c => c - 1), 1000);
       return () => clearTimeout(t);
     }
-     if (timer === 'starting' && countdown === 0 && !hasNavigated ) {
+    if (timer === 'starting' && countdown === 0 && !hasNavigated) {
       hasNavigated = true
       navigate('/gamePage');
     }
@@ -131,13 +157,22 @@ function App() {
     );
   }
 
-  return jsx('div', { className: 'welcome' },
-    jsx('h1', null, `Welcome, ${nickname}!`),
-    jsx('p', null, `Players joined: ${playerCount} / 4`),
-    playerCount < 2 && jsx('p', null, 'Waiting for more players...'),
-    playerCount >= 2 && jsx('p', null, `Game starting in ${countdown} seconds...`),
-    jsx('p', { style: { fontSize: '0.9em', color: '#aaa' } }, 'This is a simulation. Real multiplayer coming soon.')
-  );
+  return jsx('div', null,
+    jsx('div', { className: 'welcome' },
+      jsx('h1', null, `Welcome, ${nickname}!`),
+      jsx('p', null, `Players joined: ${playerCount} / 4`),
+      playerCount < 2 && jsx('p', null, 'Waiting for more players...'),
+      playerCount >= 2 && jsx('p', null, `Game starting in ${countdown} seconds...`),
+      jsx('p', { style: { fontSize: '0.9em', color: '#aaa' } }, 'This is a simulation. Real multiplayer coming soon.')
+    ),
+    jsx('div', { id: 'chat-container' },
+      jsx('div', { id: 'chat-messages' },
+        ...messages.map(msg => showMsg(msg))
+      ),
+      jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
+    )
+  )
+
 }
 
 
