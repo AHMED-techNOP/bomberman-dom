@@ -91,6 +91,8 @@ function App() {
   const [playerCount, setPlayerCount] = useState(1); // Start with 1 (yourself)
   const [timer, setTimer] = useState(null); // null means not started
   const [countdown, setCountdown] = useState(10);
+  const [waitingTime, setWaitingTime] = useState(0)
+
 
   useEffect(() => {
     if (!submitted) return;
@@ -108,14 +110,34 @@ function App() {
     return () => clearInterval(joinInterval);
   }, [submitted]); // ✅ no need for playerCount here
 
+  // useEffect(() => {
+  //   if (!submitted) return;
+  //   // Start timer if 2+ players and timer not started
+  //   if (playerCount >= 2 && timer === null) {
+  //     setTimer('starting');
+  //     setCountdown(2);
+  //   }
+  // }, [playerCount, submitted, timer]);
+
   useEffect(() => {
-    if (!submitted) return;
-    // Start timer if 2+ players and timer not started
-    if (playerCount >= 2 && timer === null) {
-      setTimer('starting');
-      setCountdown(2);
+    if (submitted && waitingTime <= 20) {
+      const t = setTimeout(() => setWaitingTime(c => c + 1), 1000)
+      return () => clearTimeout(t);
     }
-  }, [playerCount, submitted, timer]);
+
+  }, [waitingTime, submitted])
+
+  useEffect(() => {
+    if (playerCount >= 2 && waitingTime === 20) {
+      console.log(timer);
+
+      setTimer('starting')
+    }
+    if (playerCount === 4) {
+      setWaitingTime(20)
+      setTimer('starting')
+    }
+  }, [waitingTime, playerCount]);
 
   useEffect(() => {
     if (timer === 'starting' && countdown > 0) {
@@ -157,21 +179,40 @@ function App() {
     );
   }
 
-  return jsx('div', null,
-    jsx('div', { className: 'welcome' },
+  if (waitingTime >= 20 && playerCount >= 2) {
+    return jsx('div', { className: 'welcome' },
       jsx('h1', null, `Welcome, ${nickname}!`),
       jsx('p', null, `Players joined: ${playerCount} / 4`),
       playerCount < 2 && jsx('p', null, 'Waiting for more players...'),
       playerCount >= 2 && jsx('p', null, `Game starting in ${countdown} seconds...`),
       jsx('p', { style: { fontSize: '0.9em', color: '#aaa' } }, 'This is a simulation. Real multiplayer coming soon.')
-    ),
-    jsx('div', { id: 'chat-container' },
-      jsx('div', { id: 'chat-messages' },
-        ...messages.map(msg => showMsg(msg))
-      ),
-      jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
-    )
-  )
+    );
+
+  } else {
+
+    return jsx('div', { className: 'welcome' },
+      jsx('h1', null, `Welcome, ${nickname}!`),
+      jsx('p', null, `Players joined: ${playerCount} / 4`),
+
+      // Waiting phase: less than 2 players
+      playerCount < 2 && waitingTime < 20 &&
+      jsx('p', null, `Waiting for more players... (${waitingTime}s left)`),
+
+      // Timeout expired but still only 1 player
+      playerCount < 2 && waitingTime === 0 &&
+      jsx('p', null, 'Still waiting for more players... Restarting timer.'),
+
+      // Enough players → countdown to game
+      playerCount >= 2 && waitingTime < 20 &&
+      jsx('p', null, `Game starting in ${waitingTime}s...`),
+
+      // Optional: if waitingTime reaches 20 with 2+ players, start game in another useEffect
+
+      jsx('p', { style: { fontSize: '0.9em', color: '#aaa' } },
+        'This is a simulation. Real multiplayer coming soon.'
+      )
+    );
+  }
 
 }
 
