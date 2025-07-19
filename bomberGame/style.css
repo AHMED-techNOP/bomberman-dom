@@ -90,6 +90,9 @@ body {
   font-size: 0.9em;
   z-index: 5;
   transition: transform 0.1s linear;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center center;
 }
 
 .bomberman-bomb {
