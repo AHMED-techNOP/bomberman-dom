@@ -90,7 +90,7 @@ function App() {
   // Simulated waiting room logic
   const [playerCount, setPlayerCount] = useState(1); // Start with 1 (yourself)
   const [timer, setTimer] = useState(null); // null means not started
-  const [countdown, setCountdown] = useState(10);
+  const [countdown, setCountdown] = useState(2);
   const [waitingTime, setWaitingTime] = useState(0)
 
 
@@ -262,6 +262,8 @@ function GameBoard({ nickname }) {
   const [maxBombs, setMaxBombs] = useState(1); // Default 1
   // --- Add flame state for explosion range ---
   const [flame, setFlame] = useState(1); // Default explosion range 1
+  // --- Add speed state for movement speed ---
+  const [speed, setSpeed] = useState(1); // Default speed multiplier 1
   // --- Add pixel position state for smooth movement ---
   const cellSize = 32; // px
   const gap = 2; // px, matches CSS
@@ -378,7 +380,7 @@ function GameBoard({ nickname }) {
       x: targetX * (cellSize + gap),
       y: targetY * (cellSize + gap)
     };
-    const duration = 120; // ms, can be adjusted for speed
+    const duration = 120 / speed; // ms, adjusted by speed multiplier
     const startTime = performance.now();
     function animate(now) {
       const elapsed = now - startTime;
@@ -400,13 +402,13 @@ function GameBoard({ nickname }) {
           setPowerUps(pus => pus.filter((_, i) => i !== puIdx));
           // Apply power-up effect
           if (pu.type === 'bomb') {
-            setMaxBombs(Infinity);
+            setMaxBombs(maxBombs => maxBombs + 1);
           } else if (pu.type === 'flame') {
             // Increase explosion range by 4
-            setFlame(flame => flame + 4);
+            setFlame(flame => flame + 1);
           } else if (pu.type === 'speed') {
-            // Placeholder: could increase speed
-            // setSpeed(speed => speed + 1);
+            // Increase movement speed by 0.5
+            setSpeed(speed => speed + 0.5);
           }
         }
         setMoving(false);
@@ -585,7 +587,7 @@ function GameBoard({ nickname }) {
       jsx('h1', null, win ? 'You Win!' : 'Game Over'),
       jsx('button', { onClick: () => window.location.reload(), style: { marginTop: '1rem', padding: '0.5rem 1.5rem', fontSize: '1.2rem', borderRadius: '0.5rem', background: '#333', color: '#fff', border: 'none' } }, 'Restart')
     ),
-    jsx('div', { style: { marginBottom: '0.5rem', color: '#fff', fontWeight: 'bold' } }, `Lives: ${playerLives} | Bombs: ${maxBombs === Infinity ? '∞' : maxBombs} | Flame: ${flame}`),
+    jsx('div', { style: { marginBottom: '0.5rem', color: '#fff', fontWeight: 'bold' } }, `Lives: ${playerLives} | Bombs: ${maxBombs === Infinity ? '∞' : maxBombs} | Flame: ${flame} | Speed: ${speed.toFixed(1)}x`),
     jsx('div', {
       className: 'bomberman-grid',
 
