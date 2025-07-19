@@ -1,25 +1,21 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const Websocket = require('ws')
+const WebSocket = require('ws');
 
 const publicFolder = path.join(__dirname, 'bomberGame');
-console.log("----", __dirname);
-
 
 const server = http.createServer((req, res) => {
   let filePath = path.join(publicFolder, req.url === '/' ? 'index.html' : req.url);
-
   const ext = path.extname(filePath).slice(1);
 
-  // Content-Type mapping
   const mimeTypes = {
-    'html': 'text/html',
-    'js': 'text/javascript',
-    'css': 'text/css',
-    'png': 'image/png',
-    'jpg': 'image/jpeg',
-    'gif': 'image/gif',
+    html: 'text/html',
+    js: 'text/javascript',
+    css: 'text/css',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    gif: 'image/gif',
   };
 
   const contentType = mimeTypes[ext] || 'application/octet-stream';
@@ -27,7 +23,7 @@ const server = http.createServer((req, res) => {
   fs.readFile(filePath, (err, content) => {
     if (err) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('Page Not Found (404)');
+      res.end('404 Not Found');
     } else {
       res.writeHead(200, { 'Content-Type': contentType });
       res.end(content);
@@ -35,50 +31,118 @@ const server = http.createServer((req, res) => {
   });
 });
 
+const wss = new WebSocket.Server({ server });
 
 
-const wss = new Websocket.Server({ server })
+let map = null;
+const players = new Map(); // key = nickname, value = { ws, info }
+const spawnPositions = [
+  [1, 1],
+  [1, 11],
+  [9, 1],
+  [9, 11]
+];
+const cols = 13, rows = 11;
 
-const player = new Map()
+function createInitialMap() {
+  const m = [];
+  for (let y = 0; y < rows; y++) {
+    const row = [];
+    for (let x = 0; x < cols; x++) {
+      if (x === 0 || y === 0 || x === cols - 1 || y === rows - 1) row.push(1);
+      else if (x % 2 === 0 && y % 2 === 0) row.push(1);
+      else if ((x <= 1 && y <= 1) || (x >= cols - 2 && y <= 1) || (x <= 1 && y >= rows - 2) || (x >= cols - 2 && y >= rows - 2)) row.push(0);
+      else row.push(Math.random() < 0.6 ? 2 : 0);
+    }
+    m.push(row);
+  }
+
+  m[1][2] = 0; m[2][1] = 0;
+  m[1][cols - 3] = 0; m[2][cols - 2] = 0;
+  m[rows - 3][1] = 0; m[rows - 2][2] = 0;
+  m[rows - 3][cols - 2] = 0; m[rows - 2][cols - 3] = 0;
+
+  return m;
+}
 
 wss.on('connection', (ws) => {
-  let nickname = null
+  console.log('✅ New client connected');
 
-
+  let nickname = null;
 
   ws.on('message', (message) => {
-    const data = JSON.parse(message.toString())
+    const data = JSON.parse(message.toString());
 
+    // First join
     if (data.type === 'join') {
-      nickname = data.nickname
-      player.set(nickname, ws)
-      broadcast(data)
+      nickname = data.nickname;
+
+      if (!map) {
+        map = createInitialMap();
+        console.log("🗺️ Map created");
+      }
+
+      const index = players.size;
+      const spawn = spawnPositions[index]
+
+      const playerInfo = {
+        id: Date.now(),
+        nickname,
+        pos: spawn,
+        color: ['#f00', '#0ff', '#f0f', '#0f0'][index % 4],
+        lives: 3
+      };
+
+      players.set(nickname, { ws, info: playerInfo });
+
+      // Send map + your info + other players
+      ws.send(JSON.stringify({
+        type: 'init',
+        map,
+        player: playerInfo,
+        allPlayers: Array.from(players.values()).map(p => p.info)
+      }));
+
+      // Notify other players
+      broadcast({
+        type: 'new-player',
+        player: playerInfo
+      }, except = ws);
     }
 
-    console.log(data)
-
+    // Chat message
     if (data.type === 'chat') {
-      broadcast(data)
+      broadcast(data);
     }
+  });
 
+  ws.on('close', () => {
+    console.log('❌ Player disconnected');
 
-  })
-})
+    if (nickname && players.has(nickname)) {
+      const { info } = players.get(nickname);
+      players.delete(nickname);
 
-function broadcast(msg) {
+      // Notify others player has left
+      broadcast({
+        type: 'player-left',
+        nickname: nickname,
+        id: info.id
+      });
+    }
+  });
+});
 
-  const text = JSON.stringify(msg)
-
-  for (const [name, client] of player.entries()) {
-    if (client.readyState === Websocket.OPEN) {
-      client.send(text)
+function broadcast(msg, except = null) {
+  const text = JSON.stringify(msg);
+  for (const { ws } of players.values()) {
+    if (ws.readyState === WebSocket.OPEN && ws !== except) {
+      ws.send(text);
     }
   }
 }
 
-
-
 const PORT = 3000;
 server.listen(PORT, () => {
-  console.log(`Bomberman server taykhdem 3la http://localhost:${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });

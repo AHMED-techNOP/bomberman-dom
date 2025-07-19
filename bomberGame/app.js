@@ -152,10 +152,18 @@ function App() {
 
   // Show game board when countdown reaches 0
   if (timer === 'starting' && countdown <= 0) {
-    return jsx('div', { className: 'game-board-container' },
-      jsx('h2', null, 'Game Board (static demo)'),
-      jsx(GameBoard, { nickname })
-    );
+    return jsx('div', null,
+      jsx('div', { className: 'game-board-container' },
+        jsx('h2', null, 'Game Board (static demo)'),
+        jsx(GameBoard, { nickname })
+      ),
+      jsx('div', { id: 'chat-container' },
+        jsx('div', { id: 'chat-messages' },
+          ...messages.map(msg => showMsg(msg))
+        ),
+        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
+      )
+    )
   }
 
   // Waiting room UI
@@ -180,38 +188,55 @@ function App() {
   }
 
   if (waitingTime >= 20 && playerCount >= 2) {
-    return jsx('div', { className: 'welcome' },
-      jsx('h1', null, `Welcome, ${nickname}!`),
-      jsx('p', null, `Players joined: ${playerCount} / 4`),
-      playerCount < 2 && jsx('p', null, 'Waiting for more players...'),
-      playerCount >= 2 && jsx('p', null, `Game starting in ${countdown} seconds...`),
-      jsx('p', { style: { fontSize: '0.9em', color: '#aaa' } }, 'This is a simulation. Real multiplayer coming soon.')
-    );
+    return jsx('div', null,
+      jsx('div', { className: 'welcome' },
+        jsx('h1', null, `Welcome, ${nickname}!`),
+        jsx('p', null, `Players joined: ${playerCount} / 4`),
+        playerCount < 2 && jsx('p', null, 'Waiting for more players...'),
+        playerCount >= 2 && jsx('p', null, `Game starting in ${countdown} seconds...`),
+        jsx('p', { style: { fontSize: '0.9em', color: '#aaa' } }, 'This is a simulation. Real multiplayer coming soon.')
+      ),
+      jsx('div', { id: 'chat-container' },
+        jsx('div', { id: 'chat-messages' },
+          ...messages.map(msg => showMsg(msg))
+        ),
+        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
+      )
+    )
 
   } else {
 
-    return jsx('div', { className: 'welcome' },
-      jsx('h1', null, `Welcome, ${nickname}!`),
-      jsx('p', null, `Players joined: ${playerCount} / 4`),
+    return jsx('div', null,
+      jsx('div', { className: 'welcome' },
+        jsx('h1', null, `Welcome, ${nickname}!`),
+        jsx('p', null, `Players joined: ${playerCount} / 4`),
 
-      // Waiting phase: less than 2 players
-      playerCount < 2 && waitingTime < 20 &&
-      jsx('p', null, `Waiting for more players... (${waitingTime}s left)`),
+        // Waiting phase: less than 2 players
+        playerCount < 2 && waitingTime < 20 &&
+        jsx('p', null, `Waiting for more players... (${waitingTime}s left)`),
 
-      // Timeout expired but still only 1 player
-      playerCount < 2 && waitingTime === 0 &&
-      jsx('p', null, 'Still waiting for more players... Restarting timer.'),
+        // Timeout expired but still only 1 player
+        playerCount < 2 && waitingTime === 0 &&
+        jsx('p', null, 'Still waiting for more players... Restarting timer.'),
 
-      // Enough players → countdown to game
-      playerCount >= 2 && waitingTime < 20 &&
-      jsx('p', null, `Game starting in ${waitingTime}s...`),
+        // Enough players → countdown to game
+        playerCount >= 2 && waitingTime < 20 &&
+        jsx('p', null, `Game starting in ${waitingTime}s...`),
 
-      // Optional: if waitingTime reaches 20 with 2+ players, start game in another useEffect
+        // Optional: if waitingTime reaches 20 with 2+ players, start game in another useEffect
 
-      jsx('p', { style: { fontSize: '0.9em', color: '#aaa' } },
-        'This is a simulation. Real multiplayer coming soon.'
+        jsx('p', { style: { fontSize: '0.9em', color: '#aaa' } },
+          'This is a simulation. Real multiplayer coming soon.'
+        )
+      ),
+      jsx('div', { id: 'chat-container' },
+        jsx('div', { id: 'chat-messages' },
+          ...messages.map(msg => showMsg(msg))
+        ),
+        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
       )
-    );
+    )
+
   }
 
 }
