@@ -26,8 +26,9 @@ const POWER_UPS = [
 
 
 //  ------------------------------------------------------------------------------------------------
-
+let hasNavigated = false
 function App() {
+  const { _, navigate } = useRouter()
   const [nickname, setNickname] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
@@ -43,6 +44,7 @@ function App() {
     setError('');
     setNickname(nicknameValue);
     setSubmitted(true);
+    navigate("#/lobby")
   }
 
 
@@ -93,6 +95,10 @@ function App() {
     if (timer === 'starting' && countdown > 0) {
       const t = setTimeout(() => setCountdown(c => c - 1), 1000);
       return () => clearTimeout(t);
+    }
+     if (timer === 'starting' && countdown === 0 && !hasNavigated ) {
+      hasNavigated = true
+      navigate('/gamePage');
     }
   }, [timer, countdown]);
 
@@ -512,7 +518,7 @@ function GameBoard({ nickname }) {
       jsx('div', {
         className: 'bomberman-player-abs',
         style: {
-          backgroundImage: `url("../assets/${playerImage}.gif")`,
+          backgroundImage: `url("assets/${playerImage}.gif")`,
           transform: `translate(${pixelPos.x}px, ${pixelPos.y}px)`
         }
       },),
