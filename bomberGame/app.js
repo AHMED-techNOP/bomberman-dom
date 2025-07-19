@@ -42,6 +42,20 @@ function App() {
     setSubmitted(true);
   }
 
+
+  const container = document.getElementById("chat-container")
+
+  if (submitted) {
+
+    container.style.display = "block"
+
+    useEffect(() => {
+      connectWebSocket(nickname, handleSocketMessage)
+    }, [submitted])
+  }
+
+
+
   // Simulated waiting room logic
   const [playerCount, setPlayerCount] = useState(1); // Start with 1 (yourself)
   const [timer, setTimer] = useState(null); // null means not started
@@ -126,9 +140,9 @@ function GameBoard({ nickname }) {
     for (let y = 0; y < rows; y++) {
       const row = [];
       for (let x = 0; x < cols; x++) {
-        if (x === 0 || y === 0 || x === cols-1 || y === rows-1) row.push(1);
+        if (x === 0 || y === 0 || x === cols - 1 || y === rows - 1) row.push(1);
         else if (x % 2 === 0 && y % 2 === 0) row.push(1);
-        else if ((x <= 1 && y <= 1) || (x >= cols-2 && y <= 1) || (x <= 1 && y >= rows-2) || (x >= cols-2 && y >= rows-2)) row.push(0);
+        else if ((x <= 1 && y <= 1) || (x >= cols - 2 && y <= 1) || (x <= 1 && y >= rows - 2) || (x >= cols - 2 && y >= rows - 2)) row.push(0);
         else row.push(Math.random() < 0.6 ? 2 : 0);
       }
       m.push(row);
@@ -138,14 +152,14 @@ function GameBoard({ nickname }) {
     m[1][2] = 0; // right of [1,1]
     m[2][1] = 0; // below [1,1]
     // Top-right player
-    m[1][cols-3] = 0; // left of [1,cols-2]
-    m[2][cols-2] = 0; // below [1,cols-2]
+    m[1][cols - 3] = 0; // left of [1,cols-2]
+    m[2][cols - 2] = 0; // below [1,cols-2]
     // Bottom-left player
-    m[rows-3][1] = 0; // above [rows-2,1]
-    m[rows-2][2] = 0; // right of [rows-2,1]
+    m[rows - 3][1] = 0; // above [rows-2,1]
+    m[rows - 2][2] = 0; // right of [rows-2,1]
     // Bottom-right player
-    m[rows-3][cols-2] = 0; // above [rows-2,cols-2]
-    m[rows-2][cols-3] = 0; // left of [rows-2,cols-2]
+    m[rows - 3][cols - 2] = 0; // above [rows-2,cols-2]
+    m[rows - 2][cols - 3] = 0; // left of [rows-2,cols-2]
     return m;
   }
   // Defensive map initialization: always ensure array
@@ -169,9 +183,9 @@ function GameBoard({ nickname }) {
   // Track power-ups on the map: {y, x, type}
   const [powerUps, setPowerUps] = useState([]);
   const [otherPlayers, setOtherPlayers] = useState([
-    { name: 'P2', color: '#0ff', pos: [1,cols-2], alive: true, lives: 3 },
-    { name: 'P3', color: '#f0f', pos: [rows-2,1], alive: true, lives: 3 },
-    { name: 'P4', color: '#0f0', pos: [rows-2,cols-2], alive: true, lives: 3 },
+    { name: 'P2', color: '#0ff', pos: [1, cols - 2], alive: true, lives: 3 },
+    { name: 'P3', color: '#f0f', pos: [rows - 2, 1], alive: true, lives: 3 },
+    { name: 'P4', color: '#0f0', pos: [rows - 2, cols - 2], alive: true, lives: 3 },
   ]);
   // Bomb state: array of { y, x, time } (time = Date.now() when placed)
   const [bombs, setBombs] = useState([]);
@@ -189,33 +203,33 @@ function GameBoard({ nickname }) {
   const [hitExplosions, setHitExplosions] = useState(new Set());
 
   useEffect(() => {
-  if (!playerAlive || gameOver) return;
+    if (!playerAlive || gameOver) return;
 
-  let gotHit = false;
+    let gotHit = false;
 
-  explosions.forEach(ex => {
-    const explosionId = `${ex.y}-${ex.x}-${ex.time}`;
-    const isOnPlayer = ex.y === playerPos[0] && ex.x === playerPos[1];
+    explosions.forEach(ex => {
+      const explosionId = `${ex.y}-${ex.x}-${ex.time}`;
+      const isOnPlayer = ex.y === playerPos[0] && ex.x === playerPos[1];
 
-    if (isOnPlayer && !hitExplosions.has(explosionId)) {
-      gotHit = true;
-      setHitExplosions(new Set([...hitExplosions, explosionId]));
+      if (isOnPlayer && !hitExplosions.has(explosionId)) {
+        gotHit = true;
+        setHitExplosions(new Set([...hitExplosions, explosionId]));
+      }
+    });
+
+    if (gotHit) {
+      if (playerLives > 1) {
+        setPlayerLives(playerLives - 1);
+      } else {
+        setPlayerLives(0);
+        setPlayerAlive(false);
+      }
     }
-  });
-
-  if (gotHit) {
-    if (playerLives > 1) {
-      setPlayerLives(playerLives - 1);
-    } else {
-      setPlayerLives(0);
-      setPlayerAlive(false);
-    }
-  }
-}, [explosions, playerPos, playerAlive, gameOver, hitExplosions, playerLives]);
+  }, [explosions, playerPos, playerAlive, gameOver, hitExplosions, playerLives]);
 
 
 
-//  ------------------------------------------------------------------------------------------------
+  //  ------------------------------------------------------------------------------------------------
 
 
 
@@ -328,17 +342,17 @@ function GameBoard({ nickname }) {
         // Explosion logic
         const explosionCells = [[bomb.y, bomb.x]];
         // Directions: up, down, left, right
-        const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+        const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
         for (let [dy, dx] of dirs) {
           for (let i = 1; i <= flame; i++) { // Explosion range = flame
-            const ny = bomb.y + dy*i, nx = bomb.x + dx*i;
+            const ny = bomb.y + dy * i, nx = bomb.x + dx * i;
             if (!gameMap[ny] || gameMap[ny][nx] === undefined) break;
             if (gameMap[ny][nx] === 1) break; // Wall blocks explosion
             explosionCells.push([ny, nx]);
             if (gameMap[ny][nx] === 2) break; // Stop at destructible block
           }
         }
-        setExplosions(explosions => [...explosions, ...explosionCells.map(([y,x]) => ({ y, x, time: Date.now() }))]);
+        setExplosions(explosions => [...explosions, ...explosionCells.map(([y, x]) => ({ y, x, time: Date.now() }))]);
         // Remove destructible blocks and spawn power-ups
         setGameMap(gameMap => {
           const newMap = gameMap.map(row => row.slice());
@@ -363,9 +377,9 @@ function GameBoard({ nickname }) {
           // For demo: 10% chance to move randomly, else stay
           let pos = p.pos;
           if (Math.random() < 0.1) {
-            const moves = [[0,1],[0,-1],[1,0],[-1,0]];
-            for (let [dy,dx] of moves) {
-              const ny = p.pos[0]+dy, nx = p.pos[1]+dx;
+            const moves = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+            for (let [dy, dx] of moves) {
+              const ny = p.pos[0] + dy, nx = p.pos[1] + dx;
               if (gameMap[ny] && gameMap[ny][nx] === 0) {
                 pos = [ny, nx];
                 break;
@@ -456,7 +470,7 @@ function GameBoard({ nickname }) {
     jsx('div', { style: { marginBottom: '0.5rem', color: '#fff', fontWeight: 'bold' } }, `Lives: ${playerLives} | Bombs: ${maxBombs === Infinity ? '∞' : maxBombs} | Flame: ${flame}`),
     jsx('div', {
       className: 'bomberman-grid',
-      
+
     },
       // --- Absolutely positioned player ---
       jsx('div', {
@@ -505,5 +519,5 @@ function GameBoard({ nickname }) {
 }
 window.App = App;
 document.addEventListener('DOMContentLoaded', () => {
-    render();
+  render();
 });
