@@ -139,6 +139,15 @@ wss.on('connection', (ws) => {
 
     }
 
+    if (data.type === 'bomb') {
+      // Broadcast bomb placement to all players
+      broadcast({
+        type: 'bomb-placed',
+        position: data.position,
+        nickname: data.nickname
+      }, except = ws);
+    }
+
     // Chat message
     if (data.type === 'chat') {
       broadcast(data);

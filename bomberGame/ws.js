@@ -40,3 +40,14 @@ function sendDestroyedBlock(y, x) {
         socket.send(JSON.stringify(message));
     }
 }
+
+function sendBomb(y, x) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        const message = {
+            type: 'bomb',
+            position: { y, x },
+            nickname
+        }
+        socket.send(JSON.stringify(message));
+    }
+}
