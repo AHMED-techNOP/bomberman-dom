@@ -24,6 +24,8 @@ const POWER_UPS = [
   }
 ];
 
+let init = null
+let initMap = null
 
 //  ------------------------------------------------------------------------------------------------
 let hasNavigated = false
@@ -34,6 +36,11 @@ function App() {
   const [error, setError] = useState('');
 
   const [messages, setMessages] = useState([])
+
+
+  const [otherPlayers, setOtherPlayers] = useState([])
+
+  const [gameMap, setGameMap] = useState(initMap?.map(row => row.slice()));
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -66,9 +73,24 @@ function App() {
       console.log(`${data.nickname} joined`)
     }
 
+    if (data.type === 'init') {
+      init = data
+      initMap = data.map
+
+      setOtherPlayers(data.allPlayers)
+    }
+
+    if (data.type === 'new-player') {
+      setOtherPlayers(data.allPlayers)
+    }
+
     if (data.type === 'chat') {
       const msg = `${data.nickname}: ${data.message}`
       setMessages(prev => [...prev, msg])
+    }
+
+    if (data.type === 'block-destroyed') {
+      setGameMap(data.map)
     }
 
   }
@@ -155,7 +177,7 @@ function App() {
     return jsx('div', null,
       jsx('div', { className: 'game-board-container' },
         jsx('h2', null, 'Game Board (static demo)'),
-        jsx(GameBoard, { nickname })
+        jsx(GameBoard, { nickname, otherPlayers, gameMap, setGameMap })
       ),
       jsx('div', { id: 'chat-container' },
         jsx('div', { id: 'chat-messages' },
@@ -246,42 +268,16 @@ function App() {
 
 
 // --- Game Board Component ---
-function GameBoard({ nickname }) {
-  const cols = 13, rows = 11;
-  // Generate static map: 0=empty, 1=wall, 2=block
-  function createInitialMap() {
-    const m = [];
-    for (let y = 0; y < rows; y++) {
-      const row = [];
-      for (let x = 0; x < cols; x++) {
-        if (x === 0 || y === 0 || x === cols - 1 || y === rows - 1) row.push(1);
-        else if (x % 2 === 0 && y % 2 === 0) row.push(1);
-        else if ((x <= 1 && y <= 1) || (x >= cols - 2 && y <= 1) || (x <= 1 && y >= rows - 2) || (x >= cols - 2 && y >= rows - 2)) row.push(0);
-        else row.push(Math.random() < 0.6 ? 2 : 0);
-      }
-      m.push(row);
-    }
-    // Ensure the two cells next to each player's spawn are always empty
-    // Top-left player
-    m[1][2] = 0; // right of [1,1]
-    m[2][1] = 0; // below [1,1]
-    // Top-right player
-    m[1][cols - 3] = 0; // left of [1,cols-2]
-    m[2][cols - 2] = 0; // below [1,cols-2]
-    // Bottom-left player
-    m[rows - 3][1] = 0; // above [rows-2,1]
-    m[rows - 2][2] = 0; // right of [rows-2,1]
-    // Bottom-right player
-    m[rows - 3][cols - 2] = 0; // above [rows-2,cols-2]
-    m[rows - 2][cols - 3] = 0; // left of [rows-2,cols-2]
-    return m;
-  }
-  // Defensive map initialization: always ensure array
-  const [map] = useState(createInitialMap());
+function GameBoard({ nickname, otherPlayers, gameMap, setGameMap }) {
+
+  console.log(otherPlayers);
+
+  // const cols = 13, rows = 11
+
   // Player state
-  const [playerPos, setPlayerPos] = useState([1, 1]);
-  // Track lives and alive state for all players
-  const [playerLives, setPlayerLives] = useState(3);
+  const [playerPos, setPlayerPos] = useState(init.player.pos);
+  // // Track lives and alive state for all players
+  const [playerLives, setPlayerLives] = useState(init.player.lives);
   const [playerAlive, setPlayerAlive] = useState(true); // you
   // --- Add maxBombs state ---
   const [maxBombs, setMaxBombs] = useState(1); // Default 1
@@ -298,19 +294,20 @@ function GameBoard({ nickname }) {
   const [moving, setMoving] = useState(false);
   // Track power-ups on the map: {y, x, type}
   const [powerUps, setPowerUps] = useState([]);
-  const [otherPlayers, setOtherPlayers] = useState([
-    { name: 'P2', color: '#0ff', pos: [1, cols - 2], alive: true, lives: 3 },
-    { name: 'P3', color: '#f0f', pos: [rows - 2, 1], alive: true, lives: 3 },
-    { name: 'P4', color: '#0f0', pos: [rows - 2, cols - 2], alive: true, lives: 3 },
-  ]);
+
+  // const [otherPlayers, setOtherPlayers] = useState([
+  //   { name: 'P2', color: '#0ff', pos: [1, cols - 2], alive: true, lives: 3 },
+  //   { name: 'P3', color: '#f0f', pos: [rows - 2, 1], alive: true, lives: 3 },
+  //   { name: 'P4', color: '#0f0', pos: [rows - 2, cols - 2], alive: true, lives: 3 },
+  // ]);
   // Bomb state: array of { y, x, time } (time = Date.now() when placed)
   const [bombs, setBombs] = useState([]);
   // Explosion state: array of { y, x, time }
   const [explosions, setExplosions] = useState([]);
   // Map state for destructible blocks (mutable copy)
-  const [gameMap, setGameMap] = useState(map.map(row => row.slice()));
-  // Player alive/dead state
-  const [alive, setAlive] = useState(true);
+
+
+
   // Block input if dead or game over
   const [gameOver, setGameOver] = useState(false);
   const [win, setWin] = useState(false);
@@ -419,6 +416,9 @@ function GameBoard({ nickname }) {
       } else {
         // Snap to grid, update logical position
         setPlayerPos([targetY, targetX]);
+
+        sendMove(targetY, targetX)
+
         // --- Check for power-up at new position ---
         const puIdx = powerUps.findIndex(p => p.y === targetY && p.x === targetX);
         if (puIdx !== -1) {
@@ -475,6 +475,7 @@ function GameBoard({ nickname }) {
           const newPowerUps = [];
           for (let [y, x] of explosionCells) {
             if (newMap[y][x] === 2) {
+              sendDestroyedBlock(y, x)
               newMap[y][x] = 0;
               // --- Randomly spawn a power-up ---
               if (Math.random() < 0.3) { // 30% chance
@@ -487,30 +488,7 @@ function GameBoard({ nickname }) {
           return newMap;
         });
         // Check if you are hit (handled in explosion effect above)
-        // Check if other players are hit (simulate random movement for demo)
-        setOtherPlayers(players => players.map(p => {
-          if (!p.alive) return p;
-          // For demo: 10% chance to move randomly, else stay
-          let pos = p.pos;
-          if (Math.random() < 0.1) {
-            const moves = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-            for (let [dy, dx] of moves) {
-              const ny = p.pos[0] + dy, nx = p.pos[1] + dx;
-              if (gameMap[ny] && gameMap[ny][nx] === 0) {
-                pos = [ny, nx];
-                break;
-              }
-            }
-          }
-          if (explosionCells.some(([y, x]) => y === pos[0] && x === pos[1])) {
-            if (p.lives > 1) {
-              return { ...p, lives: p.lives - 1 };
-            } else {
-              return { ...p, lives: 0, alive: false };
-            }
-          }
-          return { ...p, pos };
-        }));
+
         setBombs(bombs => bombs.filter(b => b !== bomb));
       }, delay);
     });
@@ -540,11 +518,14 @@ function GameBoard({ nickname }) {
 
   // Win/lose logic
   useEffect(() => {
-    const aliveOthers = otherPlayers.filter(p => p.alive).length;
+    // if (otherPlayers) {
+
+    // }
+    const aliveOthers = otherPlayers?.filter(p => p.alive).length;
     if ((!playerAlive || playerLives === 0) && !gameOver) {
       setGameOver(true);
       setWin(false);
-    } else if (playerAlive && playerLives > 0 && aliveOthers === 0 && !gameOver) {
+    } else if (playerAlive && playerLives > 0 && aliveOthers === 1 && !gameOver) {
       setGameOver(true);
       setWin(true);
     }
@@ -554,9 +535,20 @@ function GameBoard({ nickname }) {
 
 
   // All players (for rendering)
+
   const players = [
-    { name: nickname, color: '#ff0', pos: playerPos, alive: playerAlive, lives: playerLives },
-    ...otherPlayers
+    {
+      name: nickname,
+      pos: playerPos,
+      alive: playerAlive,
+      lives: playerLives
+    },
+    ...(otherPlayers || []).map(p => ({
+      name: p.nickname,
+      pos: p.pos,
+      alive: true,
+      lives: p.lives
+    }))
   ];
 
   const [playerImage, setPlayerImage] = useState('run-right');
@@ -647,17 +639,14 @@ function GameBoard({ nickname }) {
           content = jsx('div', { className: 'bomberman-powerup' }, puDef ? puDef.label : '?');
         }
         // Player icon (for other players only)
-        const player = players.find(p => p.pos[0] === y && p.pos[1] === x && p.alive && p.name !== nickname);
+        const player = players?.find(p => p.pos[0] === y && p.pos[1] === x && p.alive && p.name !== nickname);
         if (player) {
           content = jsx('div', {
             className: 'bomberman-player',
             style: {
-              background: player.color,
-              backgroundImage: player.name === nickname
-                ? `url("./assets/${playerImage}.gif")`
-                : 'none'
+              backgroundImage: `url("./assets/${playerImage}.gif")`
             }
-          }, player.name);
+          }, '');
         }
         return jsx('div', {
           key: `${y}-${x}`,

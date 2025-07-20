@@ -34,8 +34,11 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocket.Server({ server });
 
 
+
+
+
 let map = null;
-const players = new Map(); // key = nickname, value = { ws, info }
+const players = new Map() // key = nickname, value = { ws, info }
 const spawnPositions = [
   [1, 1],
   [1, 11],
@@ -65,6 +68,7 @@ function createInitialMap() {
   return m;
 }
 
+
 wss.on('connection', (ws) => {
   console.log('✅ New client connected');
 
@@ -89,7 +93,6 @@ wss.on('connection', (ws) => {
         id: Date.now(),
         nickname,
         pos: spawn,
-        color: ['#f00', '#0ff', '#f0f', '#0f0'][index % 4],
         lives: 3
       };
 
@@ -101,13 +104,39 @@ wss.on('connection', (ws) => {
         map,
         player: playerInfo,
         allPlayers: Array.from(players.values()).map(p => p.info)
-      }));
+      }))
 
       // Notify other players
       broadcast({
         type: 'new-player',
-        player: playerInfo
+        player: playerInfo,
+        allPlayers: Array.from(players.values()).map(p => p.info)
       }, except = ws);
+    }
+
+    if (data.type === 'move') {
+      const player = players.get(data.nickname);
+      if (player) {
+        player.info.pos = data.pos;
+      }
+
+      broadcast({
+        type: 'new-player',
+        allPlayers: Array.from(players.values()).map(p => p.info)
+      }, except = ws)
+    }
+
+    if (data.type === 'block-destroyed') {
+      // Update server-side game state
+      const { y, x } = data.position;
+      map[y][x] = 0; // Update the map
+
+    
+      broadcast({
+        type: 'block-destroyed',
+        map: map
+      });
+
     }
 
     // Chat message

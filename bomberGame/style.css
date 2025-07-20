@@ -68,7 +68,7 @@ body {
   width: 29px;
   height: 29px;
   border-radius: 50%;
-  border: 2px solid #fff;
+  /* border: 2px solid #fff; */
   display: flex;
   align-items: center;
   justify-content: center;
