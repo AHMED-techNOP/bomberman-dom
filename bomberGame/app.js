@@ -1,6 +1,7 @@
 // app.js
 // Use SimpleReact's globals directly (jsx, render, etc.)
 
+
 // --- Power-Up Types ---
 
 const POWER_UPS = [
@@ -24,6 +25,7 @@ const POWER_UPS = [
   }
 ];
 
+let i = null
 
 //  ------------------------------------------------------------------------------------------------
 let hasNavigated = false
@@ -79,6 +81,8 @@ function App() {
     }
 
     if (data.type === 'init') {
+      i = data.player.i
+      
       console.log('Received game initialization from server')
       // Store the server-provided map and player data
       setServerMap(data.map)
@@ -180,14 +184,14 @@ function App() {
     return jsx('div', null,
       jsx('div', { className: 'game-board-container' },
         jsx('h2', null, 'Bomberman Game'),
-        jsx(GameBoard, { nickname, serverMap, playerInfo, allPlayers, serverBombs, serverExplosions, serverMapChanges, setServerMapChanges })
+        jsx(GameBoard, { nickname, serverMap, playerInfo, allPlayers, serverBombs, serverExplosions, serverMapChanges, setServerMapChanges , i })
       ),
-      jsx('div', { id: 'chat-container' },
-        jsx('div', { id: 'chat-messages' },
-          ...messages.map(msg => showMsg(msg))
-        ),
-        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
-      )
+      // jsx('div', { id: 'chat-container' },
+      //   jsx('div', { id: 'chat-messages' },
+      //     ...messages.map(msg => showMsg(msg))
+      //   ),
+      //   jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
+      // )
     )
   }
 
@@ -237,7 +241,8 @@ function App() {
 
 // --- Game Board Component ---
 function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, serverExplosions, serverMapChanges, setServerMapChanges }) {
-  const cols = 13, rows = 11;
+  
+  console.log(i);
   
   // Wait for server data before rendering
   if (!serverMap || !playerInfo) {
@@ -676,7 +681,7 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
       jsx('div', {
         className: 'bomberman-player-abs',
         style: {
-          backgroundImage: `url("assets/${playerImage}.gif")`,
+          backgroundImage: `url("assets/P${i}/${playerImage}.gif")`,
           transform: `translate(${pixelPos.x}px, ${pixelPos.y}px)`
         }
       },),
@@ -710,7 +715,7 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
             style: {
               background: player.color,
               backgroundImage: player.name === nickname
-                ? `url("./assets/${playerImage}.gif")`
+                ? `url("./assets/P${i}/${playerImage}.gif")`
                 : 'none'
             }
           }, player.name);

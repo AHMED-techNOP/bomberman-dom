@@ -32,6 +32,7 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocket.Server({ server });
 
+let i = 0;
 
 let map = null;
 const players = new Map(); // key = nickname, value = { ws, info }
@@ -75,7 +76,7 @@ wss.on('connection', (ws) => {
     // First join
     if (data.type === 'join') {
       nickname = data.nickname;
-
+      i++;
       if (!map) {
         map = createInitialMap();
         console.log("🗺️ Map created");
@@ -88,6 +89,7 @@ wss.on('connection', (ws) => {
         id: Date.now(),
         nickname,
         pos: spawn,
+        i:i,
         color: ['#f00', '#0ff', '#f0f', '#0f0'][index % 4],
         lives: 3
       };
