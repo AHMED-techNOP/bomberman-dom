@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const WebSocket = require('ws');
+const { start } = require('repl');
 
 const publicFolder = path.join(__dirname, 'bomberGame');
 
@@ -65,6 +66,7 @@ function createInitialMap() {
   return m;
 }
 let i = 0;
+let starting = false;
 
 wss.on('connection', (ws) => {
   console.log('✅ New client connected');
@@ -76,15 +78,28 @@ wss.on('connection', (ws) => {
 
     // First join
     if (data.type === 'join') {
-      i++
+
       console.log(i)
       nickname = data.nickname;
+
+      if (players.has(nickname)) {
+        console.log(`❌ Player with nickname ${nickname} already exists`);
+        ws.send(JSON.stringify({ type: 'error', message: 'Nickname already taken' }));
+        return;
+      }
+
+      if (starting) {
+        console.log(`❌ Game already started, ${nickname} cannot join`);
+        ws.send(JSON.stringify({ type: 'error', message: 'Game already started' }));
+        return;
+      }
 
       if (!map) {
         map = createInitialMap();
         console.log("🗺️ Map created");
       }
 
+      i++
       const index = players.size;
       const spawn = spawnPositions[index]
 
@@ -119,13 +134,19 @@ wss.on('connection', (ws) => {
       broadcast(data);
     }
 
+    if (data.type === 'starting') {
+      starting = true;
+      console.log('Game starting signal received');
+      broadcast({ type: 'starting' });
+    }
+
     // Player movement
     if (data.type === 'move') {
       // Update player position
       if (players.has(nickname)) {
         const player = players.get(nickname);
         player.info.pos = data.pos;
-        
+
         // Broadcast movement to other players
         broadcast({
           type: 'player-moved',

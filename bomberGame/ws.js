@@ -35,6 +35,12 @@ function sendChatMessage(text) {
     }
 }
 
+function sendStarting() {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'starting' }))
+    }
+}
+
 function sendMoveMessage(pos) {
     if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: 'move', nickname: nickname, pos: pos }))

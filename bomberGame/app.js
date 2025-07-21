@@ -31,7 +31,7 @@ function App() {
   const { _, navigate } = useRouter()
   const [nickname, setNickname] = useState('');
   const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState('')
 
   const [messages, setMessages] = useState([])
 
@@ -68,6 +68,8 @@ function App() {
     }
   }
 
+  const [waiting, setWaiting] = useState(false)
+
 
   function handleSocketMessage(data) {
 
@@ -79,6 +81,21 @@ function App() {
       const msg = `${data.nickname}: ${data.message}`
       setMessages(prev => [...prev, msg])
     }
+
+    if (data.type === 'starting') {
+      console.log('Game is starting...')
+      setWaiting(true)
+    }
+
+    if (data.type === 'error') {
+      console.error(`Error from server: ${data.message}`);
+      setError(data.message)
+      setSubmitted(false)
+      setNickname('')
+      setWaiting(false)
+    }
+
+
 
     if (data.type === 'init') {
       console.log('Received game initialization from server')
@@ -206,15 +223,15 @@ function App() {
   }
 
 
-
-  const [waiting, setWaiting] = useState(false)
   const [countDown, setConuntDown] = useState(10)
 
 
   if (allPlayers.length >= 2) {
+
     setTimeout(() => {
-      setWaiting(true)
-    }, 20000);
+      sendStarting()
+    }, 20000)
+
   }
 
 
@@ -257,18 +274,18 @@ function App() {
   }
 
   // Show game board when server data is available
- if (serverMap && (waiting || allPlayers.length === 4))  {
+  if (serverMap && (waiting || allPlayers.length === 4)) {
     return jsx('div', null,
       jsx('div', { className: 'game-board-container' },
         jsx('h2', null, 'Bomberman Game'),
         jsx(GameBoard, { nickname, serverMap, playerInfo, allPlayers, serverBombs, serverExplosions, serverMapChanges, setServerMapChanges, myLives, myAlive })
       ),
-      jsx('div', { id: 'chat-container' },
-        jsx('div', { id: 'chat-messages' },
-          ...messages.map(msg => showMsg(msg))
-        ),
-        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
-      )
+      // jsx('div', { id: 'chat-container' },
+      //   jsx('div', { id: 'chat-messages' },
+      //     ...messages.map(msg => showMsg(msg))
+      //   ),
+      //   jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
+      // )
     )
   }
 
