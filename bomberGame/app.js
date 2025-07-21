@@ -730,9 +730,47 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
 
   // ------------------------------------------------------------------------------------------------
 
+
+
+  // --- Heart animation state ---
+  const [heartScale, setHeartScale] = useState(1);
+  useEffect(() => {
+    let frame;
+    function animate() {
+      const t = Date.now() / 1000;
+      setHeartScale(1 + 0.15 * Math.sin(t * 2 * Math.PI));
+      frame = requestAnimationFrame(animate);
+    }
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+
   return jsx('div', {
     className: 'bomberman-board'
   },
+
+   // --- Player stats bar at the top ---
+    jsx('div', {
+      className: 'player-stats-bar',
+      style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '2em', fontSize: '1.3em', marginBottom: '1.2em', background: 'rgba(30,30,30,0.95)', borderRadius: '0.7em', padding: '0.7em 1em', boxShadow: '0 2px 8px #0008', border: '2px solid #444' }
+    },
+      jsx('span', { style: { display: 'flex', alignItems: 'center', gap: '0.4em' } },
+        jsx('span', {
+          style: {
+            display: 'inline-block',
+            transform: `scale(${heartScale})`,
+            transition: 'none',
+            willChange: 'transform',
+          }
+        }, '❤️'),
+        jsx('span', { style: { fontWeight: 'bold', color: '#f55' } }, myLives)
+      ),
+      jsx('span', { style: { display: 'flex', alignItems: 'center', gap: '0.4em' } }, '💣', jsx('span', { style: { fontWeight: 'bold', color: '#fff' } }, maxBombs === Infinity ? '∞' : maxBombs)),
+      jsx('span', { style: { display: 'flex', alignItems: 'center', gap: '0.4em' } }, '🔥', jsx('span', { style: { fontWeight: 'bold', color: '#ff0' } }, flame)),
+      jsx('span', { style: { display: 'flex', alignItems: 'center', gap: '0.4em' } }, '⚡', jsx('span', { style: { fontWeight: 'bold', color: '#0ff' } }, speed.toFixed(1) + 'x'))
+    ),
+
     gameOver && jsx('div', {
       className: 'game-overlay',
       style: { zIndex: 10 }
@@ -740,7 +778,6 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
       jsx('h1', null, win ? 'You Win!' : 'Game Over'),
       jsx('button', { onClick: () => window.location.reload(), style: { marginTop: '1rem', padding: '0.5rem 1.5rem', fontSize: '1.2rem', borderRadius: '0.5rem', background: '#333', color: '#fff', border: 'none' } }, 'Restart')
     ),
-    jsx('div', { style: { marginBottom: '0.5rem', color: '#fff', fontWeight: 'bold' } }, `Lives: ${myLives} | Bombs: ${maxBombs === Infinity ? '∞' : maxBombs} | Flame: ${flame} | Speed: ${speed.toFixed(1)}x`),
     jsx('div', {
       className: 'bomberman-grid',
 
