@@ -207,12 +207,57 @@ function App() {
 
 
 
-  // Game state
-  const [timer, setTimer] = useState(null); // null means not started
-  const [countdown, setCountdown] = useState(0);
+  const [waiting, setWaiting] = useState(false)
+  const [countDown, setConuntDown] = useState(10)
+
+
+  if (allPlayers.length >= 2) {
+    setTimeout(() => {
+      setWaiting(true)
+    }, 20000);
+  }
+
+
+
+  useEffect(() => {
+    if (waiting || allPlayers.length === 4) {
+      let id = setInterval(() => {
+        setConuntDown(prev => {
+          if (prev === 0) {
+            clearInterval(id)
+            setWaiting(true)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    }
+
+  }, [waiting, allPlayers])
+
+
+  // Show waiting room while connecting to server
+  if (submitted && (!waiting || countDown > 0)) {
+    return jsx('div', null,
+      jsx('div', { className: 'welcome' },
+        jsx('h1', null, `Welcome, ${nickname}!`),
+        jsx('p', null, 'Connecting to server...'),
+        jsx('p', null, `${allPlayers.length} player${allPlayers.length === 1 ? "" : "s"} `),
+        jsx('p', { style: { fontSize: '0.9em', color: '#aaa' } }, 'Waiting for game initialization...'),
+        (waiting || allPlayers.length === 4) && jsx('p', null, `${countDown} /s`),
+
+      ),
+      jsx('div', { id: 'chat-container' },
+        jsx('div', { id: 'chat-messages' },
+          ...messages.map(msg => showMsg(msg))
+        ),
+        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
+      )
+    )
+  }
 
   // Show game board when server data is available
-  if (serverMap && playerInfo) {
+ if (serverMap && (waiting || allPlayers.length === 4))  {
     return jsx('div', null,
       jsx('div', { className: 'game-board-container' },
         jsx('h2', null, 'Bomberman Game'),
@@ -246,23 +291,6 @@ function App() {
         jsx('button', { type: 'submit', style: { padding: '0.5rem', fontSize: '1rem', borderRadius: '0.5rem', background: '#4caf50', color: '#fff', border: 'none' } }, 'Join')
       )
     );
-  }
-
-  // Show waiting room while connecting to server
-  if (submitted && !serverMap) {
-    return jsx('div', null,
-      jsx('div', { className: 'welcome' },
-        jsx('h1', null, `Welcome, ${nickname}!`),
-        jsx('p', null, 'Connecting to server...'),
-        jsx('p', { style: { fontSize: '0.9em', color: '#aaa' } }, 'Waiting for game initialization...')
-      ),
-      jsx('div', { id: 'chat-container' },
-        jsx('div', { id: 'chat-messages' },
-          ...messages.map(msg => showMsg(msg))
-        ),
-        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
-      )
-    )
   }
 
 }
