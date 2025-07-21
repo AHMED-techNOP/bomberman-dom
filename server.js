@@ -73,7 +73,7 @@ wss.on('connection', (ws) => {
   console.log('✅ New client connected');
 
   let nickname = null;
-
+  let c = 0
   ws.on('message', (message) => {
     const data = JSON.parse(message.toString());
 
@@ -131,7 +131,7 @@ wss.on('connection', (ws) => {
       const { y, x } = data.position;
       map[y][x] = 0; // Update the map
 
-    
+
       broadcast({
         type: 'block-destroyed',
         map: map
@@ -140,12 +140,19 @@ wss.on('connection', (ws) => {
     }
 
     if (data.type === 'bomb') {
+      c++
+      console.log(c);
+
+      if (c != 2) {
+        console.log("****", data)
+        c = 0
+        broadcast({
+          type: 'bomb-placed',
+          position: data.position,
+          nickname: data.nickname
+        }, except = ws);
+      }
       // Broadcast bomb placement to all players
-      broadcast({
-        type: 'bomb-placed',
-        position: data.position,
-        nickname: data.nickname
-      }, except = ws);
     }
 
     // Chat message

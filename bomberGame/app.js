@@ -1,6 +1,8 @@
 // app.js
 // Use SimpleReact's globals directly (jsx, render, etc.)
 
+
+
 // --- Power-Up Types ---
 
 const POWER_UPS = [
@@ -66,7 +68,7 @@ function App() {
     }
   }
 
-
+  const [bomba, setBomba] = useState([])
   function handleSocketMessage(data) {
 
     if (data.type === 'join') {
@@ -91,6 +93,23 @@ function App() {
 
     if (data.type === 'block-destroyed') {
       setGameMap(data.map)
+    }
+    if (data.type === 'bomb-placed') {
+      const { position, nickname } = data;
+      const newBomb = {
+        y: position.y,
+        x: position.x,
+        time: Date.now(),
+        owner: nickname // Add owner to bomb
+      };
+      setGameMap(prevMap => {
+        const newMap = prevMap.map(row => row.slice());
+        newMap[position.y][position.x] = 3;
+        return newMap;
+      })
+
+      setBomba(bombs => [...bombs, newBomb]);
+
     }
 
   }
@@ -171,103 +190,6 @@ function App() {
       navigate('/gamePage');
     }
   }, [timer, countdown]);
-
-  // Show game board when countdown reaches 0
-  if (timer === 'starting' && countdown <= 0) {
-    return jsx('div', null,
-      jsx('div', { className: 'game-board-container' },
-        jsx('h2', null, 'Game Board (static demo)'),
-        jsx(GameBoard, { nickname, otherPlayers, gameMap, setGameMap })
-      ),
-      jsx('div', { id: 'chat-container' },
-        jsx('div', { id: 'chat-messages' },
-          ...messages.map(msg => showMsg(msg))
-        ),
-        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
-      )
-    )
-  }
-
-  // Waiting room UI
-  if (!submitted) {
-    return jsx('div', { className: 'welcome' },
-      jsx('h1', null, 'Bomberman DOM'),
-      jsx('form', { onSubmit: handleSubmit, style: { display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: '220px' } },
-        jsx('label', { htmlFor: 'nickname' }, 'Enter your nickname:'),
-        jsx('input', {
-          id: 'nickname',
-          type: 'text',
-          value: nickname,
-          autoFocus: true,
-          maxLength: 16,
-          required: true,
-          style: { padding: '0.5rem', fontSize: '1rem', borderRadius: '0.5rem', border: '1px solid #555', background: '#222', color: '#fff' }
-        }),
-        error && jsx('div', { style: { color: '#f55', fontSize: '0.9em' } }, error),
-        jsx('button', { type: 'submit', style: { padding: '0.5rem', fontSize: '1rem', borderRadius: '0.5rem', background: '#4caf50', color: '#fff', border: 'none' } }, 'Join')
-      )
-    );
-  }
-
-  if (waitingTime >= 20 && playerCount >= 2) {
-    return jsx('div', null,
-      jsx('div', { className: 'welcome' },
-        jsx('h1', null, `Welcome, ${nickname}!`),
-        jsx('p', null, `Players joined: ${playerCount} / 4`),
-        playerCount < 2 && jsx('p', null, 'Waiting for more players...'),
-        playerCount >= 2 && jsx('p', null, `Game starting in ${countdown} seconds...`),
-        jsx('p', { style: { fontSize: '0.9em', color: '#aaa' } }, 'This is a simulation. Real multiplayer coming soon.')
-      ),
-      jsx('div', { id: 'chat-container' },
-        jsx('div', { id: 'chat-messages' },
-          ...messages.map(msg => showMsg(msg))
-        ),
-        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
-      )
-    )
-
-  } else {
-
-    return jsx('div', null,
-      jsx('div', { className: 'welcome' },
-        jsx('h1', null, `Welcome, ${nickname}!`),
-        jsx('p', null, `Players joined: ${playerCount} / 4`),
-
-        // Waiting phase: less than 2 players
-        playerCount < 2 && waitingTime < 20 &&
-        jsx('p', null, `Waiting for more players... (${waitingTime}s left)`),
-
-        // Timeout expired but still only 1 player
-        playerCount < 2 && waitingTime === 0 &&
-        jsx('p', null, 'Still waiting for more players... Restarting timer.'),
-
-        // Enough players → countdown to game
-        playerCount >= 2 && waitingTime < 20 &&
-        jsx('p', null, `Game starting in ${waitingTime}s...`),
-
-        // Optional: if waitingTime reaches 20 with 2+ players, start game in another useEffect
-
-        jsx('p', { style: { fontSize: '0.9em', color: '#aaa' } },
-          'This is a simulation. Real multiplayer coming soon.'
-        )
-      ),
-      jsx('div', { id: 'chat-container' },
-        jsx('div', { id: 'chat-messages' },
-          ...messages.map(msg => showMsg(msg))
-        ),
-        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
-      )
-    )
-
-  }
-
-}
-
-
-//  ------------------------------------------------------------------------------------------------
-
-
-// --- Game Board Component ---
 function GameBoard({ nickname, otherPlayers, gameMap, setGameMap }) {
 
   console.log(otherPlayers);
@@ -365,6 +287,7 @@ function GameBoard({ nickname, otherPlayers, gameMap, setGameMap }) {
           (maxBombs === Infinity || playerBombs < maxBombs)
         ) {
           setBombs(bombs => [...bombs, { y: playerPos[0], x: playerPos[1], time: Date.now(), owner: nickname }]);
+          sendBomb(playerPos[0], playerPos[1])
         }
         return;
       } else {
@@ -497,7 +420,9 @@ function GameBoard({ nickname, otherPlayers, gameMap, setGameMap }) {
 
 
   //  ------------------------------------------------------------------------------------------------
-
+  useEffect(() => {
+    setBombs(bomba)
+  }, [bomba])
 
   // Remove explosion visuals after 400ms
   useEffect(() => {
@@ -656,6 +581,103 @@ function GameBoard({ nickname, otherPlayers, gameMap, setGameMap }) {
     )
   );
 }
+  // Show game board when countdown reaches 0
+  if (timer === 'starting' && countdown <= 0) {
+    return jsx('div', null,
+      jsx('div', { className: 'game-board-container' },
+        jsx('h2', null, 'Game Board (static demo)'),
+        jsx(GameBoard, { nickname, otherPlayers, gameMap, setGameMap })
+      ),
+      jsx('div', { id: 'chat-container' },
+        jsx('div', { id: 'chat-messages' },
+          ...messages.map(msg => showMsg(msg))
+        ),
+        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
+      )
+    )
+  }
+
+  // Waiting room UI
+  if (!submitted) {
+    return jsx('div', { className: 'welcome' },
+      jsx('h1', null, 'Bomberman DOM'),
+      jsx('form', { onSubmit: handleSubmit, style: { display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: '220px' } },
+        jsx('label', { htmlFor: 'nickname' }, 'Enter your nickname:'),
+        jsx('input', {
+          id: 'nickname',
+          type: 'text',
+          value: nickname,
+          autoFocus: true,
+          maxLength: 16,
+          required: true,
+          style: { padding: '0.5rem', fontSize: '1rem', borderRadius: '0.5rem', border: '1px solid #555', background: '#222', color: '#fff' }
+        }),
+        error && jsx('div', { style: { color: '#f55', fontSize: '0.9em' } }, error),
+        jsx('button', { type: 'submit', style: { padding: '0.5rem', fontSize: '1rem', borderRadius: '0.5rem', background: '#4caf50', color: '#fff', border: 'none' } }, 'Join')
+      )
+    );
+  }
+
+  if (waitingTime >= 20 && playerCount >= 2) {
+    return jsx('div', null,
+      jsx('div', { className: 'welcome' },
+        jsx('h1', null, `Welcome, ${nickname}!`),
+        jsx('p', null, `Players joined: ${playerCount} / 4`),
+        playerCount < 2 && jsx('p', null, 'Waiting for more players...'),
+        playerCount >= 2 && jsx('p', null, `Game starting in ${countdown} seconds...`),
+        jsx('p', { style: { fontSize: '0.9em', color: '#aaa' } }, 'This is a simulation. Real multiplayer coming soon.')
+      ),
+      jsx('div', { id: 'chat-container' },
+        jsx('div', { id: 'chat-messages' },
+          ...messages.map(msg => showMsg(msg))
+        ),
+        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
+      )
+    )
+
+  } else {
+
+    return jsx('div', null,
+      jsx('div', { className: 'welcome' },
+        jsx('h1', null, `Welcome, ${nickname}!`),
+        jsx('p', null, `Players joined: ${playerCount} / 4`),
+
+        // Waiting phase: less than 2 players
+        playerCount < 2 && waitingTime < 20 &&
+        jsx('p', null, `Waiting for more players... (${waitingTime}s left)`),
+
+        // Timeout expired but still only 1 player
+        playerCount < 2 && waitingTime === 0 &&
+        jsx('p', null, 'Still waiting for more players... Restarting timer.'),
+
+        // Enough players → countdown to game
+        playerCount >= 2 && waitingTime < 20 &&
+        jsx('p', null, `Game starting in ${waitingTime}s...`),
+
+        // Optional: if waitingTime reaches 20 with 2+ players, start game in another useEffect
+
+        jsx('p', { style: { fontSize: '0.9em', color: '#aaa' } },
+          'This is a simulation. Real multiplayer coming soon.'
+        )
+      ),
+      jsx('div', { id: 'chat-container' },
+        jsx('div', { id: 'chat-messages' },
+          ...messages.map(msg => showMsg(msg))
+        ),
+        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
+      )
+    )
+
+  }
+
+}
+
+
+//  ------------------------------------------------------------------------------------------------
+
+
+// --- Game Board Component ---
+
 window.App = App;
 document.addEventListener('DOMContentLoaded', () => {
   render();
