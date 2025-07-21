@@ -113,6 +113,12 @@ function App() {
       setCountdown(0)
     }
 
+
+    if( data.type === 'IMG') {
+      setAllPlayers(data.allPlayers)
+    }
+
+
     if (data.type === 'new-player') {
       console.log(`New player joined: ${data.player.nickname}`)
       console.log('New player data:', data.player)
@@ -662,13 +668,15 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
 
   // All players (for rendering) - use server data
   const players = [
-    { name: nickname, color: playerInfo.color, pos: playerPos, alive: myAlive, lives: myLives },
+    { name: nickname, color: playerInfo.color, pos: playerPos, alive: myAlive, lives: myLives, i: i },
     ...allPlayers.filter(p => p.nickname !== nickname).map(p => ({
       name: p.nickname,
       color: p.color,
       pos: p.pos,
       alive: p.alive !== undefined ? p.alive : true,
-      lives: p.lives
+      lives: p.lives,
+      i: p.i,
+      img: p.img || `assets/P${p.i}/run-down.gif` // Default to run-down if no image provided
     }))
   ];
 
@@ -680,15 +688,19 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
     const handleKeyDown = (e) => {
       if (e.key === 'ArrowLeft') {
         setPlayerImage('run-left');
+        sendImg(i, 'run-left', nickname)
       }
       if (e.key === 'ArrowRight') {
         setPlayerImage('run-right');
+        sendImg(i, 'run-right', nickname);
       }
       if (e.key === 'ArrowDown') {
         setPlayerImage('run-down');
+        sendImg(i, 'run-down' , nickname);
       }
       if (e.key === 'ArrowUp') {
         setPlayerImage('run-up');
+        sendImg(i, 'run-up' , nickname);
       }
     };
 
@@ -696,6 +708,7 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
     window.addEventListener('keyup', handleKeyup => {
       if (handleKeyup.key === 'ArrowLeft' || handleKeyup.key === 'ArrowRight') {
         setPlayerImage('run-down'); // Default to down when not moving
+        sendImg(i, 'run-down' , nickname);
       }
     })
 
@@ -768,12 +781,9 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
           content = jsx('div', {
             className: 'bomberman-player',
             style: {
-              background: player.color,
-              backgroundImage: player.name === nickname
-                ? `url("./assets/${i}${playerImage}.gif")`
-                : 'none'
+              backgroundImage:  player.img
             }
-          }, player.name);
+          }, '');
         }
         return jsx('div', {
           key: `${y}-${x}`,

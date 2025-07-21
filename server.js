@@ -108,7 +108,7 @@ wss.on('connection', (ws) => {
         nickname,
         pos: spawn,
         i: i,
-        color: ['#f00', '#0ff', '#f0f', '#0f0'][index % 4],
+        img:  `url("./assets/P${i}/run-down.gif")`,
         lives: 3
       };
 
@@ -127,6 +127,21 @@ wss.on('connection', (ws) => {
         type: 'new-player',
         player: playerInfo
       }, except = ws);
+    }
+
+    if (data.type === 'IMG') {
+      const { i, playerImage, nickname } = data;
+      console.log(`Player ${nickname} sent image: ${playerImage}`);
+      // Update player image in the map
+      const player = players.get(nickname);
+      if (player) {
+        player.info.img = `url("./assets/P${i}/${playerImage}.gif")`;
+        broadcast({
+          type: 'IMG',
+          allPlayers: Array.from(players.values()).map(p => p.info)
+        });
+      }
+      return
     }
 
     // Chat message

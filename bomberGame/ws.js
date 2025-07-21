@@ -52,6 +52,11 @@ function sendBombMessage(pos, time) {
         socket.send(JSON.stringify({ type: 'place-bomb', nickname: nickname, pos: pos, time: time }))
     }
 }
+function sendImg(i, playerImage, nickname) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'IMG', i , playerImage, nickname }))
+    }
+}
 
 function sendExplosionMessage(explosionCells, time) {
     if (socket && socket.readyState === WebSocket.OPEN) {

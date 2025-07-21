@@ -30,7 +30,8 @@ body {
   border-radius: 1rem;
   box-shadow: 0 2px 16px #0008;
   margin: 1rem;
-  position: relative; /* Allow absolute children */
+  position: relative;
+  /* Allow absolute children */
 }
 
 .bomberman-grid {
@@ -38,7 +39,8 @@ body {
   grid-template-columns: repeat(13, 32px);
   grid-template-rows: repeat(11, 32px);
   gap: 2px;
-  position: relative; /* Allow absolute children */
+  position: relative;
+  /* Allow absolute children */
 }
 
 .bomberman-cell {
@@ -75,7 +77,11 @@ body {
   font-weight: bold;
   color: #222;
   font-size: 0.9em;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center center;
 }
+
 
 .bomberman-player-abs {
   position: absolute;
@@ -116,8 +122,13 @@ body {
 }
 
 @keyframes explosion-fade {
-  0% { opacity: 1; }
-  100% { opacity: 0.2; }
+  0% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.2;
+  }
 }
 
 
@@ -126,12 +137,12 @@ body {
 
 
 #chat-container {
-  position: fixed;           
-  right: 20px;             
-  bottom: 20px;           
-  width: 320px;           
-  max-height: 350px;     
-  background: #222;         
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 320px;
+  max-height: 350px;
+  background: #222;
   border-radius: 1rem;
   box-shadow: 0 4px 20px #000c;
   display: flex;
@@ -143,9 +154,12 @@ body {
 
 #chat-messages {
 
-  height: 200px; background: #111; color: #eee; padding: 10px;
+  height: 200px;
+  background: #111;
+  color: #eee;
+  padding: 10px;
 
-  flex-grow: 1;             
+  flex-grow: 1;
   overflow-y: auto;
   padding: 12px;
   color: #eee;
@@ -172,7 +186,8 @@ body {
 
 #chat-input {
 
-  width: 100%; padding: 8px;
+  width: 100%;
+  padding: 8px;
 
   border: none;
   border-top: 1px solid #444;
