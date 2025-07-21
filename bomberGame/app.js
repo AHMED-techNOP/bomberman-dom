@@ -1,7 +1,6 @@
 // app.js
 // Use SimpleReact's globals directly (jsx, render, etc.)
 
-
 // --- Power-Up Types ---
 
 const POWER_UPS = [
@@ -25,7 +24,6 @@ const POWER_UPS = [
   }
 ];
 
-let i = null
 
 //  ------------------------------------------------------------------------------------------------
 let hasNavigated = false
@@ -43,6 +41,8 @@ function App() {
   const [serverBombs, setServerBombs] = useState([])
   const [serverExplosions, setServerExplosions] = useState([])
   const [serverMapChanges, setServerMapChanges] = useState([])
+  const [myLives, setMyLives] = useState(3); // default 3, will be set on init
+  const [myAlive, setMyAlive] = useState(true); // default true, will be set on init
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -81,13 +81,13 @@ function App() {
     }
 
     if (data.type === 'init') {
-      i = data.player.i
-      
       console.log('Received game initialization from server')
       // Store the server-provided map and player data
       setServerMap(data.map)
       setPlayerInfo(data.player)
       setAllPlayers(data.allPlayers)
+      setMyLives(data.player.lives)
+      setMyAlive(true); // player is alive at start
       // Start the game immediately
       setTimer('starting')
       setCountdown(0)
@@ -159,6 +159,21 @@ function App() {
       }]);
     }
 
+    if (data.type === 'players-hit') {
+      setAllPlayers(prev =>
+        prev.map(p => {
+          const hit = data.hitPlayers.find(hp => hp.nickname === p.nickname);
+          return hit ? { ...p, lives: hit.lives, alive: hit.alive } : p;
+        })
+      );
+      // Also update your own lives and alive if you are hit
+      const me = data.hitPlayers.find(hp => hp.nickname === nickname);
+      if (me) {
+        setMyLives(me.lives);
+        setMyAlive(me.alive);
+      }
+    }
+
   }
 
 
@@ -184,14 +199,14 @@ function App() {
     return jsx('div', null,
       jsx('div', { className: 'game-board-container' },
         jsx('h2', null, 'Bomberman Game'),
-        jsx(GameBoard, { nickname, serverMap, playerInfo, allPlayers, serverBombs, serverExplosions, serverMapChanges, setServerMapChanges , i })
+        jsx(GameBoard, { nickname, serverMap, playerInfo, allPlayers, serverBombs, serverExplosions, serverMapChanges, setServerMapChanges, myLives, myAlive })
       ),
-      // jsx('div', { id: 'chat-container' },
-      //   jsx('div', { id: 'chat-messages' },
-      //     ...messages.map(msg => showMsg(msg))
-      //   ),
-      //   jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
-      // )
+      jsx('div', { id: 'chat-container' },
+        jsx('div', { id: 'chat-messages' },
+          ...messages.map(msg => showMsg(msg))
+        ),
+        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
+      )
     )
   }
 
@@ -240,9 +255,8 @@ function App() {
 
 
 // --- Game Board Component ---
-function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, serverExplosions, serverMapChanges, setServerMapChanges }) {
-  
-  console.log(i);
+function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, serverExplosions, serverMapChanges, setServerMapChanges, myLives, myAlive }) {
+  const cols = 13, rows = 11;
   
   // Wait for server data before rendering
   if (!serverMap || !playerInfo) {
@@ -251,8 +265,8 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
   // Player state - initialize from server data
   const [playerPos, setPlayerPos] = useState(playerInfo.pos);
   // Track lives and alive state for all players
-  const [playerLives, setPlayerLives] = useState(playerInfo.lives);
-  const [playerAlive, setPlayerAlive] = useState(true); // you
+  // const [playerLives, setPlayerLives] = useState(myLives);
+  // const [playerAlive, setPlayerAlive] = useState(myAlive); // you
   // --- Add maxBombs state ---
   const [maxBombs, setMaxBombs] = useState(1); // Default 1
   // --- Add flame state for explosion range ---
@@ -339,41 +353,13 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
   // Detect player death from explosion (now: lose a life, die if 0)
   const [hitExplosions, setHitExplosions] = useState(new Set());
 
-  useEffect(() => {
-    if (!playerAlive || gameOver) return;
-
-    let gotHit = false;
-
-    explosions.forEach(ex => {
-      const explosionId = `${ex.y}-${ex.x}-${ex.time}`;
-      const isOnPlayer = ex.y === playerPos[0] && ex.x === playerPos[1];
-
-      if (isOnPlayer && !hitExplosions.has(explosionId)) {
-        gotHit = true;
-        setHitExplosions(new Set([...hitExplosions, explosionId]));
-      }
-    });
-
-    if (gotHit) {
-      if (playerLives > 1) {
-        setPlayerLives(playerLives - 1);
-      } else {
-        setPlayerLives(0);
-        setPlayerAlive(false);
-      }
-    }
-  }, [explosions, playerPos, playerAlive, gameOver, hitExplosions, playerLives]);
-
-
 
   //  ------------------------------------------------------------------------------------------------
 
 
-
-
   // Handle keyboard movement and bomb drop
   useEffect(() => {
-    if (!playerAlive || gameOver) return;
+    if (!myAlive || gameOver) return;
     function handleKey(e) {
       if (moving) return; // Ignore input while moving
       let dir = null;
@@ -403,7 +389,7 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
     }
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [playerPos, gameMap, bombs, playerAlive, gameOver, maxBombs, powerUps, nickname, moving]);
+  }, [playerPos, gameMap, bombs, myAlive, gameOver, maxBombs, powerUps, nickname, moving]);
 
 
   //  ------------------------------------------------------------------------------------------------
@@ -591,23 +577,29 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
 
 
   // Win/lose logic
-  // useEffect(() => {
-  //   const aliveOthers = otherPlayers.filter(p => p.alive).length;
-  //   if ((!playerAlive || playerLives === 0) && !gameOver) {
-  //     setGameOver(true);
-  //     setWin(false);
-  //   } else if (playerAlive && playerLives > 0 && aliveOthers === 0 && !gameOver) {
-  //     setGameOver(true);
-  //     setWin(true);
-  //   }
-  // }, [playerAlive, playerLives, otherPlayers, gameOver]);
+  // Comment out the win/lose logic useEffect
+  /*
+  useEffect(() => {
+    // Only check win/lose if there are at least 2 players
+    if (allPlayers.length < 2) return;
+
+    const aliveOthers = otherPlayers.filter(p => p.alive).length;
+    if ((!myAlive || myLives === 0) && !gameOver) {
+      setGameOver(true);
+      setWin(false);
+    } else if (myAlive && myLives > 0 && aliveOthers === 0 && !gameOver) {
+      setGameOver(true);
+      setWin(true);
+    }
+  }, [myAlive, myLives, otherPlayers, gameOver, allPlayers.length]);
+  */
 
   //  ------------------------------------------------------------------------------------------------
 
 
   // All players (for rendering) - use server data
   const players = [
-    { name: nickname, color: playerInfo.color, pos: playerPos, alive: playerAlive, lives: playerLives },
+    { name: nickname, color: playerInfo.color, pos: playerPos, alive: myAlive, lives: myLives },
     ...allPlayers.filter(p => p.nickname !== nickname).map(p => ({
       name: p.nickname,
       color: p.color,
@@ -672,7 +664,7 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
       jsx('h1', null, win ? 'You Win!' : 'Game Over'),
       jsx('button', { onClick: () => window.location.reload(), style: { marginTop: '1rem', padding: '0.5rem 1.5rem', fontSize: '1.2rem', borderRadius: '0.5rem', background: '#333', color: '#fff', border: 'none' } }, 'Restart')
     ),
-    jsx('div', { style: { marginBottom: '0.5rem', color: '#fff', fontWeight: 'bold' } }, `Lives: ${playerLives} | Bombs: ${maxBombs === Infinity ? '∞' : maxBombs} | Flame: ${flame} | Speed: ${speed.toFixed(1)}x`),
+    jsx('div', { style: { marginBottom: '0.5rem', color: '#fff', fontWeight: 'bold' } }, `Lives: ${myLives} | Bombs: ${maxBombs === Infinity ? '∞' : maxBombs} | Flame: ${flame} | Speed: ${speed.toFixed(1)}x`),
     jsx('div', {
       className: 'bomberman-grid',
 
@@ -681,7 +673,7 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
       jsx('div', {
         className: 'bomberman-player-abs',
         style: {
-          backgroundImage: `url("assets/P${i}/${playerImage}.gif")`,
+          backgroundImage: `url("assets/${playerImage}.gif")`,
           transform: `translate(${pixelPos.x}px, ${pixelPos.y}px)`
         }
       },),
@@ -715,7 +707,7 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
             style: {
               background: player.color,
               backgroundImage: player.name === nickname
-                ? `url("./assets/P${i}/${playerImage}.gif")`
+                ? `url("./assets/${playerImage}.gif")`
                 : 'none'
             }
           }, player.name);

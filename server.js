@@ -32,7 +32,6 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocket.Server({ server });
 
-let i = 0;
 
 let map = null;
 const players = new Map(); // key = nickname, value = { ws, info }
@@ -76,7 +75,7 @@ wss.on('connection', (ws) => {
     // First join
     if (data.type === 'join') {
       nickname = data.nickname;
-      i++;
+
       if (!map) {
         map = createInitialMap();
         console.log("🗺️ Map created");
@@ -89,7 +88,6 @@ wss.on('connection', (ws) => {
         id: Date.now(),
         nickname,
         pos: spawn,
-        i:i,
         color: ['#f00', '#0ff', '#f0f', '#0f0'][index % 4],
         lives: 3
       };
@@ -145,13 +143,34 @@ wss.on('connection', (ws) => {
 
     // Explosion effect
     if (data.type === 'explosion') {
-      // Broadcast explosion to all players
+      // Broadcast explosion to all players (visual effect)
       broadcast({
         type: 'explosion-effect',
         nickname: nickname,
         explosionCells: data.explosionCells,
         time: data.time
       });
+
+      // Check which players are hit
+      const hitPlayers = [];
+      for (const [otherNickname, { info }] of players.entries()) {
+        // Add alive property if not present
+        if (info.alive === undefined) info.alive = true;
+        if (!info.alive || info.lives <= 0) continue;
+        const [py, px] = info.pos;
+        if (data.explosionCells.some(([y, x]) => y === py && x === px)) {
+          info.lives = Math.max(0, info.lives - 1);
+          if (info.lives === 0) info.alive = false;
+          hitPlayers.push({ nickname: otherNickname, lives: info.lives, alive: info.alive });
+        }
+      }
+      // Broadcast updated lives to all clients
+      if (hitPlayers.length > 0) {
+        broadcast({
+          type: 'players-hit',
+          hitPlayers
+        });
+      }
     }
 
     // Block destruction
