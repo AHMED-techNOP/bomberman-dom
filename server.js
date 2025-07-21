@@ -19,7 +19,6 @@ const server = http.createServer((req, res) => {
   };
 
   const contentType = mimeTypes[ext] || 'application/octet-stream';
-
   fs.readFile(filePath, (err, content) => {
     if (err) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
@@ -34,11 +33,8 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocket.Server({ server });
 
 
-
-
-
 let map = null;
-const players = new Map() // key = nickname, value = { ws, info }
+const players = new Map(); // key = nickname, value = { ws, info }
 const spawnPositions = [
   [1, 1],
   [1, 11],
@@ -68,12 +64,11 @@ function createInitialMap() {
   return m;
 }
 
-
 wss.on('connection', (ws) => {
   console.log('✅ New client connected');
 
   let nickname = null;
-  let c = 0
+
   ws.on('message', (message) => {
     const data = JSON.parse(message.toString());
 
@@ -93,6 +88,7 @@ wss.on('connection', (ws) => {
         id: Date.now(),
         nickname,
         pos: spawn,
+        color: ['#f00', '#0ff', '#f0f', '#0f0'][index % 4],
         lives: 3
       };
 
@@ -104,60 +100,78 @@ wss.on('connection', (ws) => {
         map,
         player: playerInfo,
         allPlayers: Array.from(players.values()).map(p => p.info)
-      }))
+      }));
 
       // Notify other players
       broadcast({
         type: 'new-player',
-        player: playerInfo,
-        allPlayers: Array.from(players.values()).map(p => p.info)
+        player: playerInfo
       }, except = ws);
-    }
-
-    if (data.type === 'move') {
-      const player = players.get(data.nickname);
-      if (player) {
-        player.info.pos = data.pos;
-      }
-
-      broadcast({
-        type: 'new-player',
-        allPlayers: Array.from(players.values()).map(p => p.info)
-      }, except = ws)
-    }
-
-    if (data.type === 'block-destroyed') {
-      // Update server-side game state
-      const { y, x } = data.position;
-      map[y][x] = 0; // Update the map
-
-
-      broadcast({
-        type: 'block-destroyed',
-        map: map
-      });
-
-    }
-
-    if (data.type === 'bomb') {
-      c++
-      console.log(c);
-
-      if (c != 2) {
-        console.log("****", data)
-        c = 0
-        broadcast({
-          type: 'bomb-placed',
-          position: data.position,
-          nickname: data.nickname
-        }, except = ws);
-      }
-      // Broadcast bomb placement to all players
     }
 
     // Chat message
     if (data.type === 'chat') {
       broadcast(data);
+    }
+
+    // Player movement
+    if (data.type === 'move') {
+      // Update player position
+      if (players.has(nickname)) {
+        const player = players.get(nickname);
+        player.info.pos = data.pos;
+        
+        // Broadcast movement to other players
+        broadcast({
+          type: 'player-moved',
+          nickname: nickname,
+          pos: data.pos
+        }, except = ws);
+      }
+    }
+
+    // Bomb placement
+    if (data.type === 'place-bomb') {
+      // Broadcast bomb placement to all players
+      broadcast({
+        type: 'bomb-placed',
+        nickname: nickname,
+        pos: data.pos,
+        time: data.time
+      });
+    }
+
+    // Explosion effect
+    if (data.type === 'explosion') {
+      // Broadcast explosion to all players
+      broadcast({
+        type: 'explosion-effect',
+        nickname: nickname,
+        explosionCells: data.explosionCells,
+        time: data.time
+      });
+    }
+
+    // Block destruction
+    if (data.type === 'destroy-blocks') {
+      // Broadcast block destruction to all players
+      broadcast({
+        type: 'blocks-destroyed',
+        nickname: nickname,
+        destroyedBlocks: data.destroyedBlocks,
+        newPowerUps: data.newPowerUps
+      });
+    }
+
+    // Power-up collection
+    if (data.type === 'collect-powerup') {
+      // Broadcast power-up collection to all players
+      broadcast({
+        type: 'powerup-collected',
+        nickname: nickname,
+        pos: data.pos,
+        powerUpType: data.powerUpType
+      });
     }
   });
 

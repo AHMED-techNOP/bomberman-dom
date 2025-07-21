@@ -1,8 +1,6 @@
 // app.js
 // Use SimpleReact's globals directly (jsx, render, etc.)
 
-
-
 // --- Power-Up Types ---
 
 const POWER_UPS = [
@@ -26,8 +24,6 @@ const POWER_UPS = [
   }
 ];
 
-let init = null
-let initMap = null
 
 //  ------------------------------------------------------------------------------------------------
 let hasNavigated = false
@@ -38,11 +34,13 @@ function App() {
   const [error, setError] = useState('');
 
   const [messages, setMessages] = useState([])
-
-
-  const [otherPlayers, setOtherPlayers] = useState([])
-
-  const [gameMap, setGameMap] = useState(initMap?.map(row => row.slice()));
+  
+  const [serverMap, setServerMap] = useState(null)
+  const [playerInfo, setPlayerInfo] = useState(null)
+  const [allPlayers, setAllPlayers] = useState([])
+  const [serverBombs, setServerBombs] = useState([])
+  const [serverExplosions, setServerExplosions] = useState([])
+  const [serverMapChanges, setServerMapChanges] = useState([])
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -68,22 +66,11 @@ function App() {
     }
   }
 
-  const [bomba, setBomba] = useState([])
+
   function handleSocketMessage(data) {
 
     if (data.type === 'join') {
       console.log(`${data.nickname} joined`)
-    }
-
-    if (data.type === 'init') {
-      init = data
-      initMap = data.map
-
-      setOtherPlayers(data.allPlayers)
-    }
-
-    if (data.type === 'new-player') {
-      setOtherPlayers(data.allPlayers)
     }
 
     if (data.type === 'chat') {
@@ -91,25 +78,81 @@ function App() {
       setMessages(prev => [...prev, msg])
     }
 
-    if (data.type === 'block-destroyed') {
-      setGameMap(data.map)
+    if (data.type === 'init') {
+      console.log('Received game initialization from server')
+      // Store the server-provided map and player data
+      setServerMap(data.map)
+      setPlayerInfo(data.player)
+      setAllPlayers(data.allPlayers)
+      // Start the game immediately
+      setTimer('starting')
+      setCountdown(0)
     }
-    if (data.type === 'bomb-placed') {
-      const { position, nickname } = data;
-      const newBomb = {
-        y: position.y,
-        x: position.x,
-        time: Date.now(),
-        owner: nickname // Add owner to bomb
-      };
-      setGameMap(prevMap => {
-        const newMap = prevMap.map(row => row.slice());
-        newMap[position.y][position.x] = 3;
-        return newMap;
+
+    if (data.type === 'new-player') {
+      console.log(`New player joined: ${data.player.nickname}`)
+      console.log('New player data:', data.player)
+      setAllPlayers(prev => {
+        const newAllPlayers = [...prev, data.player]
+        console.log('Updated allPlayers:', newAllPlayers)
+        return newAllPlayers
       })
+    }
 
-      setBomba(bombs => [...bombs, newBomb]);
+    if (data.type === 'player-moved') {
+      console.log(`Player ${data.nickname} moved to position [${data.pos[0]}, ${data.pos[1]}]`)
+      setAllPlayers(prev => prev.map(p => 
+        p.nickname === data.nickname 
+          ? { ...p, pos: data.pos }
+          : p
+      ))
+    }
 
+    if (data.type === 'bomb-placed') {
+      console.log(`Player ${data.nickname} placed a bomb at [${data.pos[0]}, ${data.pos[1]}]`)
+      setServerBombs(prev => [...prev, { 
+        y: data.pos[0], 
+        x: data.pos[1], 
+        time: data.time, 
+        owner: data.nickname 
+      }])
+      
+      // Remove bomb after 2 seconds
+      setTimeout(() => {
+        setServerBombs(prev => prev.filter(b => 
+          !(b.y === data.pos[0] && b.x === data.pos[1] && b.time === data.time)
+        ))
+      }, 2010)
+    }
+
+    if (data.type === 'explosion-effect') {
+      console.log(`Player ${data.nickname} caused explosion at ${data.explosionCells.length} cells`)
+      // Add explosion cells to server explosions
+      const explosionTime = data.time;
+      const newExplosions = data.explosionCells.map(([y, x]) => ({ y, x, time: explosionTime }));
+      setServerExplosions(prev => [...prev, ...newExplosions]);
+      
+      // Remove explosions after 400ms
+      setTimeout(() => {
+        setServerExplosions(prev => prev.filter(e => e.time !== explosionTime));
+      }, 400);
+    }
+
+    if (data.type === 'blocks-destroyed') {
+      console.log(`Player ${data.nickname} destroyed ${data.destroyedBlocks.length} blocks`)
+      // Add map changes to server state
+      setServerMapChanges(prev => [...prev, {
+        destroyedBlocks: data.destroyedBlocks,
+        newPowerUps: data.newPowerUps
+      }]);
+    }
+
+    if (data.type === 'powerup-collected') {
+      console.log(`Player ${data.nickname} collected power-up at [${data.pos[0]}, ${data.pos[1]}]`)
+      // Remove power-up from all players' screens
+      setServerMapChanges(prev => [...prev, {
+        removePowerUp: data.pos
+      }]);
     }
 
   }
@@ -128,78 +171,82 @@ function App() {
 
 
 
-  // Simulated waiting room logic
-  const [playerCount, setPlayerCount] = useState(1); // Start with 1 (yourself)
+  // Game state
   const [timer, setTimer] = useState(null); // null means not started
-  const [countdown, setCountdown] = useState(2);
-  const [waitingTime, setWaitingTime] = useState(0)
+  const [countdown, setCountdown] = useState(0);
+
+  // Show game board when server data is available
+  if (serverMap && playerInfo) {
+    return jsx('div', null,
+      jsx('div', { className: 'game-board-container' },
+        jsx('h2', null, 'Bomberman Game'),
+        jsx(GameBoard, { nickname, serverMap, playerInfo, allPlayers, serverBombs, serverExplosions, serverMapChanges, setServerMapChanges })
+      ),
+      jsx('div', { id: 'chat-container' },
+        jsx('div', { id: 'chat-messages' },
+          ...messages.map(msg => showMsg(msg))
+        ),
+        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
+      )
+    )
+  }
+
+  // Waiting room UI
+  if (!submitted) {
+    return jsx('div', { className: 'welcome' },
+      jsx('h1', null, 'Bomberman DOM'),
+      jsx('form', { onSubmit: handleSubmit, style: { display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: '220px' } },
+        jsx('label', { htmlFor: 'nickname' }, 'Enter your nickname:'),
+        jsx('input', {
+          id: 'nickname',
+          type: 'text',
+          value: nickname,
+          autoFocus: true,
+          maxLength: 16,
+          required: true,
+          style: { padding: '0.5rem', fontSize: '1rem', borderRadius: '0.5rem', border: '1px solid #555', background: '#222', color: '#fff' }
+        }),
+        error && jsx('div', { style: { color: '#f55', fontSize: '0.9em' } }, error),
+        jsx('button', { type: 'submit', style: { padding: '0.5rem', fontSize: '1rem', borderRadius: '0.5rem', background: '#4caf50', color: '#fff', border: 'none' } }, 'Join')
+      )
+    );
+  }
+
+  // Show waiting room while connecting to server
+  if (submitted && !serverMap) {
+    return jsx('div', null,
+      jsx('div', { className: 'welcome' },
+        jsx('h1', null, `Welcome, ${nickname}!`),
+        jsx('p', null, 'Connecting to server...'),
+        jsx('p', { style: { fontSize: '0.9em', color: '#aaa' } }, 'Waiting for game initialization...')
+      ),
+      jsx('div', { id: 'chat-container' },
+        jsx('div', { id: 'chat-messages' },
+          ...messages.map(msg => showMsg(msg))
+        ),
+        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
+      )
+    )
+  }
+
+}
 
 
-  useEffect(() => {
-    if (!submitted) return;
+//  ------------------------------------------------------------------------------------------------
 
-    const joinInterval = setInterval(() => {
-      setPlayerCount(c => {
-        if (c >= 4) {
-          clearInterval(joinInterval);
-          return c;
-        }
-        return c + 1;
-      });
-    }, 1000);
 
-    return () => clearInterval(joinInterval);
-  }, [submitted]); // ✅ no need for playerCount here
-
-  // useEffect(() => {
-  //   if (!submitted) return;
-  //   // Start timer if 2+ players and timer not started
-  //   if (playerCount >= 2 && timer === null) {
-  //     setTimer('starting');
-  //     setCountdown(2);
-  //   }
-  // }, [playerCount, submitted, timer]);
-
-  useEffect(() => {
-    if (submitted && waitingTime <= 20) {
-      const t = setTimeout(() => setWaitingTime(c => c + 1), 1000)
-      return () => clearTimeout(t);
-    }
-
-  }, [waitingTime, submitted])
-
-  useEffect(() => {
-    if (playerCount >= 2 && waitingTime === 20) {
-      console.log(timer);
-
-      setTimer('starting')
-    }
-    if (playerCount === 4) {
-      setWaitingTime(20)
-      setTimer('starting')
-    }
-  }, [waitingTime, playerCount]);
-
-  useEffect(() => {
-    if (timer === 'starting' && countdown > 0) {
-      const t = setTimeout(() => setCountdown(c => c - 1), 1000);
-      return () => clearTimeout(t);
-    }
-    if (timer === 'starting' && countdown === 0 && !hasNavigated) {
-      hasNavigated = true
-      navigate('/gamePage');
-    }
-  }, [timer, countdown]);
-function GameBoard({ nickname, otherPlayers, gameMap, setGameMap }) {
-
-  console.log(otherPlayers);
-
-  // const cols = 13, rows = 11
-
-  // Player state
-  const [playerPos, setPlayerPos] = useState(init.player.pos);
-  // // Track lives and alive state for all players
-  const [playerLives, setPlayerLives] = useState(init.player.lives);
+// --- Game Board Component ---
+function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, serverExplosions, serverMapChanges, setServerMapChanges }) {
+  const cols = 13, rows = 11;
+  
+  // Wait for server data before rendering
+  if (!serverMap || !playerInfo) {
+    return jsx('div', { style: { color: '#fff', textAlign: 'center', padding: '2rem' } }, 'Loading game data...');
+  }
+  // Player state - initialize from server data
+  const [playerPos, setPlayerPos] = useState(playerInfo.pos);
+  // Track lives and alive state for all players
+  const [playerLives, setPlayerLives] = useState(playerInfo.lives);
   const [playerAlive, setPlayerAlive] = useState(true); // you
   // --- Add maxBombs state ---
   const [maxBombs, setMaxBombs] = useState(1); // Default 1
@@ -216,20 +263,70 @@ function GameBoard({ nickname, otherPlayers, gameMap, setGameMap }) {
   const [moving, setMoving] = useState(false);
   // Track power-ups on the map: {y, x, type}
   const [powerUps, setPowerUps] = useState([]);
+  const [otherPlayers, setOtherPlayers] = useState(
+    allPlayers.filter(p => p.nickname !== nickname)
+  );
 
-  // const [otherPlayers, setOtherPlayers] = useState([
-  //   { name: 'P2', color: '#0ff', pos: [1, cols - 2], alive: true, lives: 3 },
-  //   { name: 'P3', color: '#f0f', pos: [rows - 2, 1], alive: true, lives: 3 },
-  //   { name: 'P4', color: '#0f0', pos: [rows - 2, cols - 2], alive: true, lives: 3 },
-  // ]);
+  // Update otherPlayers when allPlayers changes
+  useEffect(() => {
+    console.log('allPlayers changed:', allPlayers)
+    console.log('Current nickname:', nickname)
+    const filtered = allPlayers.filter(p => p.nickname !== nickname)
+    console.log('Filtered otherPlayers:', filtered)
+    setTimeout(() => {
+      setOtherPlayers(filtered);
+    }, 0);
+  }, [allPlayers, nickname]);
   // Bomb state: array of { y, x, time } (time = Date.now() when placed)
   const [bombs, setBombs] = useState([]);
+  
+  // Combine local bombs with server bombs
+  const allBombs = [...bombs, ...serverBombs];
   // Explosion state: array of { y, x, time }
   const [explosions, setExplosions] = useState([]);
+  
+  // Combine local explosions with server explosions
+  const allExplosions = [...explosions, ...serverExplosions];
   // Map state for destructible blocks (mutable copy)
-
-
-
+  const [gameMap, setGameMap] = useState(serverMap.map(row => row.slice()));
+  
+  // Apply server map changes
+  useEffect(() => {
+    if (serverMapChanges.length === 0) return;
+    
+    setGameMap(currentMap => {
+      const newMap = currentMap.map(row => row.slice());
+      
+      serverMapChanges.forEach(change => {
+        // Remove destroyed blocks
+        if (change.destroyedBlocks) {
+          change.destroyedBlocks.forEach(([y, x]) => {
+            if (newMap[y] && newMap[y][x] === 2) {
+              newMap[y][x] = 0;
+            }
+          });
+        }
+      });
+      
+      return newMap;
+    });
+    
+    // Handle power-ups from server changes
+    serverMapChanges.forEach(change => {
+      if (change.newPowerUps && change.newPowerUps.length > 0) {
+        setPowerUps(prev => [...prev, ...change.newPowerUps]);
+      }
+      if (change.removePowerUp) {
+        setPowerUps(prev => prev.filter(p => 
+          !(p.y === change.removePowerUp[0] && p.x === change.removePowerUp[1])
+        ));
+      }
+    });
+    
+    // Clear processed changes
+    setServerMapChanges([]);
+  }, [serverMapChanges]);
+  
   // Block input if dead or game over
   const [gameOver, setGameOver] = useState(false);
   const [win, setWin] = useState(false);
@@ -283,11 +380,13 @@ function GameBoard({ nickname, otherPlayers, gameMap, setGameMap }) {
         // --- Use nickname for bomb owner ---
         const playerBombs = bombs.filter(b => b.owner === nickname).length;
         if (
-          !bombs.some(b => b.y === playerPos[0] && b.x === playerPos[1]) &&
+          !allBombs.some(b => b.y === playerPos[0] && b.x === playerPos[1]) &&
           (maxBombs === Infinity || playerBombs < maxBombs)
         ) {
-          setBombs(bombs => [...bombs, { y: playerPos[0], x: playerPos[1], time: Date.now(), owner: nickname }]);
-          sendBomb(playerPos[0], playerPos[1])
+          const bombTime = Date.now();
+          setBombs(bombs => [...bombs, { y: playerPos[0], x: playerPos[1], time: bombTime, owner: nickname }]);
+          // Send bomb placement to server
+          sendBombMessage([playerPos[0], playerPos[1]], bombTime);
         }
         return;
       } else {
@@ -339,15 +438,16 @@ function GameBoard({ nickname, otherPlayers, gameMap, setGameMap }) {
       } else {
         // Snap to grid, update logical position
         setPlayerPos([targetY, targetX]);
-
-        sendMove(targetY, targetX)
-
+        // Send movement to server
+        sendMoveMessage([targetY, targetX]);
         // --- Check for power-up at new position ---
         const puIdx = powerUps.findIndex(p => p.y === targetY && p.x === targetX);
         if (puIdx !== -1) {
           const pu = powerUps[puIdx];
           // Remove power-up from map
           setPowerUps(pus => pus.filter((_, i) => i !== puIdx));
+          // Send power-up collection to server
+          sendPowerUpCollectionMessage([targetY, targetX], pu.type);
           // Apply power-up effect
           if (pu.type === 'bomb') {
             setMaxBombs(maxBombs => maxBombs + 1);
@@ -373,7 +473,7 @@ function GameBoard({ nickname, otherPlayers, gameMap, setGameMap }) {
 
   // Bomb explosion logic
   useEffect(() => {
-    if (bombs.length === 0) return;
+    if (allBombs.length === 0) return;
     const now = Date.now();
     const timers = bombs.map(bomb => {
       const delay = Math.max(0, 2000 - (now - bomb.time));
@@ -391,15 +491,19 @@ function GameBoard({ nickname, otherPlayers, gameMap, setGameMap }) {
             if (gameMap[ny][nx] === 2) break; // Stop at destructible block
           }
         }
-        setExplosions(explosions => [...explosions, ...explosionCells.map(([y, x]) => ({ y, x, time: Date.now() }))]);
+        const explosionTime = Date.now();
+        setExplosions(explosions => [...explosions, ...explosionCells.map(([y, x]) => ({ y, x, time: explosionTime }))]);
+        // Send explosion to server
+        sendExplosionMessage(explosionCells, explosionTime);
         // Remove destructible blocks and spawn power-ups
         setGameMap(gameMap => {
           const newMap = gameMap.map(row => row.slice());
           const newPowerUps = [];
+          const destroyedBlocks = [];
           for (let [y, x] of explosionCells) {
             if (newMap[y][x] === 2) {
-              sendDestroyedBlock(y, x)
               newMap[y][x] = 0;
+              destroyedBlocks.push([y, x]);
               // --- Randomly spawn a power-up ---
               if (Math.random() < 0.3) { // 30% chance
                 const pu = POWER_UPS[Math.floor(Math.random() * POWER_UPS.length)];
@@ -408,10 +512,39 @@ function GameBoard({ nickname, otherPlayers, gameMap, setGameMap }) {
             }
           }
           if (newPowerUps.length > 0) setPowerUps(pus => [...pus, ...newPowerUps]);
+          
+          // Send block destruction to server
+          if (destroyedBlocks.length > 0) {
+            sendBlockDestructionMessage(destroyedBlocks, newPowerUps);
+          }
+          
           return newMap;
         });
         // Check if you are hit (handled in explosion effect above)
-
+        // Check if other players are hit (simulate random movement for demo)
+        setOtherPlayers(players => players.map(p => {
+          if (!p.alive) return p;
+          // For demo: 10% chance to move randomly, else stay
+          let pos = p.pos;
+          if (Math.random() < 0.1) {
+            const moves = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+            for (let [dy, dx] of moves) {
+              const ny = p.pos[0] + dy, nx = p.pos[1] + dx;
+              if (gameMap[ny] && gameMap[ny][nx] === 0) {
+                pos = [ny, nx];
+                break;
+              }
+            }
+          }
+          if (explosionCells.some(([y, x]) => y === pos[0] && x === pos[1])) {
+            if (p.lives > 1) {
+              return { ...p, lives: p.lives - 1 };
+            } else {
+              return { ...p, lives: 0, alive: false };
+            }
+          }
+          return { ...p, pos };
+        }));
         setBombs(bombs => bombs.filter(b => b !== bomb));
       }, delay);
     });
@@ -420,61 +553,66 @@ function GameBoard({ nickname, otherPlayers, gameMap, setGameMap }) {
 
 
   //  ------------------------------------------------------------------------------------------------
-  useEffect(() => {
-    setBombs(bomba)
-  }, [bomba])
+
 
   // Remove explosion visuals after 400ms
   useEffect(() => {
-    if (explosions.length === 0) return;
+    if (allExplosions.length === 0) return;
     const now = Date.now();
-    const timers = explosions.map(ex => {
+    const timers = allExplosions.map(ex => {
       const delay = Math.max(0, 400 - (now - ex.time));
       return setTimeout(() => {
         setExplosions(explosions => explosions.filter(e => e !== ex));
       }, delay);
     });
     return () => timers.forEach(t => clearTimeout(t));
-  }, [explosions]);
+  }, [allExplosions]);
+
+  // Remove bombs after 2 seconds
+  // useEffect(() => {
+  //   if (allBombs.length === 0) return;
+  //   const now = Date.now();
+  //   const timers = allBombs.map(bomb => {
+  //     const delay = Math.max(0, 2010 - (now - bomb.time));
+  //     return setTimeout(() => {
+  //       setBombs(bombs => bombs.filter(b => b !== bomb));
+  //     }, delay);
+  //   });
+  //   return () => timers.forEach(t => clearTimeout(t));
+  // }, [allBombs]);
 
 
   //  ------------------------------------------------------------------------------------------------
 
 
   // Win/lose logic
-  useEffect(() => {
-    // if (otherPlayers) {
-
-    // }
-    const aliveOthers = otherPlayers?.filter(p => p.alive).length;
-    if ((!playerAlive || playerLives === 0) && !gameOver) {
-      setGameOver(true);
-      setWin(false);
-    } else if (playerAlive && playerLives > 0 && aliveOthers === 1 && !gameOver) {
-      setGameOver(true);
-      setWin(true);
-    }
-  }, [playerAlive, playerLives, otherPlayers, gameOver]);
+  // useEffect(() => {
+  //   const aliveOthers = otherPlayers.filter(p => p.alive).length;
+  //   if ((!playerAlive || playerLives === 0) && !gameOver) {
+  //     setGameOver(true);
+  //     setWin(false);
+  //   } else if (playerAlive && playerLives > 0 && aliveOthers === 0 && !gameOver) {
+  //     setGameOver(true);
+  //     setWin(true);
+  //   }
+  // }, [playerAlive, playerLives, otherPlayers, gameOver]);
 
   //  ------------------------------------------------------------------------------------------------
 
 
-  // All players (for rendering)
-
+  // All players (for rendering) - use server data
   const players = [
-    {
-      name: nickname,
-      pos: playerPos,
-      alive: playerAlive,
-      lives: playerLives
-    },
-    ...(otherPlayers || []).map(p => ({
+    { name: nickname, color: playerInfo.color, pos: playerPos, alive: playerAlive, lives: playerLives },
+    ...allPlayers.filter(p => p.nickname !== nickname).map(p => ({
       name: p.nickname,
+      color: p.color,
       pos: p.pos,
-      alive: true,
+      alive: p.alive !== undefined ? p.alive : true,
       lives: p.lives
     }))
   ];
+  
+  console.log('Rendering players:', players)
 
   const [playerImage, setPlayerImage] = useState('run-right');
 
@@ -548,12 +686,12 @@ function GameBoard({ nickname, otherPlayers, gameMap, setGameMap }) {
         if (cell === 1) content = jsx('div', { className: 'bomberman-wall' });
         else if (cell === 2) content = jsx('div', { className: 'bomberman-block' });
         // Bomb
-        const bomb = bombs.find(b => b.y === y && b.x === x);
+        const bomb = allBombs.find(b => b.y === y && b.x === x);
         if (bomb) {
           content = jsx('div', { className: 'bomberman-bomb' });
         }
         // Explosion
-        const explosion = explosions.find(e => e.y === y && e.x === x);
+        const explosion = allExplosions.find(e => e.y === y && e.x === x);
         if (explosion) {
           content = jsx('div', { className: 'bomberman-explosion' });
         }
@@ -564,14 +702,18 @@ function GameBoard({ nickname, otherPlayers, gameMap, setGameMap }) {
           content = jsx('div', { className: 'bomberman-powerup' }, puDef ? puDef.label : '?');
         }
         // Player icon (for other players only)
-        const player = players?.find(p => p.pos[0] === y && p.pos[1] === x && p.alive && p.name !== nickname);
+        const player = players.find(p => p.pos[0] === y && p.pos[1] === x && p.alive && p.name !== nickname);
         if (player) {
+          console.log(`Rendering player ${player.name} at position [${y}, ${x}]`)
           content = jsx('div', {
             className: 'bomberman-player',
             style: {
-              backgroundImage: `url("./assets/${playerImage}.gif")`
+              background: player.color,
+              backgroundImage: player.name === nickname
+                ? `url("./assets/${playerImage}.gif")`
+                : 'none'
             }
-          }, '');
+          }, player.name);
         }
         return jsx('div', {
           key: `${y}-${x}`,
@@ -581,103 +723,6 @@ function GameBoard({ nickname, otherPlayers, gameMap, setGameMap }) {
     )
   );
 }
-  // Show game board when countdown reaches 0
-  if (timer === 'starting' && countdown <= 0) {
-    return jsx('div', null,
-      jsx('div', { className: 'game-board-container' },
-        jsx('h2', null, 'Game Board (static demo)'),
-        jsx(GameBoard, { nickname, otherPlayers, gameMap, setGameMap })
-      ),
-      jsx('div', { id: 'chat-container' },
-        jsx('div', { id: 'chat-messages' },
-          ...messages.map(msg => showMsg(msg))
-        ),
-        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
-      )
-    )
-  }
-
-  // Waiting room UI
-  if (!submitted) {
-    return jsx('div', { className: 'welcome' },
-      jsx('h1', null, 'Bomberman DOM'),
-      jsx('form', { onSubmit: handleSubmit, style: { display: 'flex', flexDirection: 'column', gap: '1rem', minWidth: '220px' } },
-        jsx('label', { htmlFor: 'nickname' }, 'Enter your nickname:'),
-        jsx('input', {
-          id: 'nickname',
-          type: 'text',
-          value: nickname,
-          autoFocus: true,
-          maxLength: 16,
-          required: true,
-          style: { padding: '0.5rem', fontSize: '1rem', borderRadius: '0.5rem', border: '1px solid #555', background: '#222', color: '#fff' }
-        }),
-        error && jsx('div', { style: { color: '#f55', fontSize: '0.9em' } }, error),
-        jsx('button', { type: 'submit', style: { padding: '0.5rem', fontSize: '1rem', borderRadius: '0.5rem', background: '#4caf50', color: '#fff', border: 'none' } }, 'Join')
-      )
-    );
-  }
-
-  if (waitingTime >= 20 && playerCount >= 2) {
-    return jsx('div', null,
-      jsx('div', { className: 'welcome' },
-        jsx('h1', null, `Welcome, ${nickname}!`),
-        jsx('p', null, `Players joined: ${playerCount} / 4`),
-        playerCount < 2 && jsx('p', null, 'Waiting for more players...'),
-        playerCount >= 2 && jsx('p', null, `Game starting in ${countdown} seconds...`),
-        jsx('p', { style: { fontSize: '0.9em', color: '#aaa' } }, 'This is a simulation. Real multiplayer coming soon.')
-      ),
-      jsx('div', { id: 'chat-container' },
-        jsx('div', { id: 'chat-messages' },
-          ...messages.map(msg => showMsg(msg))
-        ),
-        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
-      )
-    )
-
-  } else {
-
-    return jsx('div', null,
-      jsx('div', { className: 'welcome' },
-        jsx('h1', null, `Welcome, ${nickname}!`),
-        jsx('p', null, `Players joined: ${playerCount} / 4`),
-
-        // Waiting phase: less than 2 players
-        playerCount < 2 && waitingTime < 20 &&
-        jsx('p', null, `Waiting for more players... (${waitingTime}s left)`),
-
-        // Timeout expired but still only 1 player
-        playerCount < 2 && waitingTime === 0 &&
-        jsx('p', null, 'Still waiting for more players... Restarting timer.'),
-
-        // Enough players → countdown to game
-        playerCount >= 2 && waitingTime < 20 &&
-        jsx('p', null, `Game starting in ${waitingTime}s...`),
-
-        // Optional: if waitingTime reaches 20 with 2+ players, start game in another useEffect
-
-        jsx('p', { style: { fontSize: '0.9em', color: '#aaa' } },
-          'This is a simulation. Real multiplayer coming soon.'
-        )
-      ),
-      jsx('div', { id: 'chat-container' },
-        jsx('div', { id: 'chat-messages' },
-          ...messages.map(msg => showMsg(msg))
-        ),
-        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
-      )
-    )
-
-  }
-
-}
-
-
-//  ------------------------------------------------------------------------------------------------
-
-
-// --- Game Board Component ---
-
 window.App = App;
 document.addEventListener('DOMContentLoaded', () => {
   render();

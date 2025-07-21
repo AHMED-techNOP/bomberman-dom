@@ -15,15 +15,19 @@ function connectWebSocket(name, onMessage) {
     }
 }
 
-function sendMove(y, x) {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({
-            type: 'move',
-            pos: [y, x],
-            nickname
-        }));
-    }
-}
+
+// function handleSocketMessage(data) {
+
+//     if (data.type === 'join') {
+//         console.log(`${data.nickname} joined`)
+//     }
+
+//     if (data.type === 'chat' && data.nickname !== nickname) {
+//         addChatMessage(data.nickname, data.message)
+//     }
+
+// }
+
 
 function sendChatMessage(text) {
     if (socket && socket.readyState === WebSocket.OPEN) {
@@ -31,23 +35,56 @@ function sendChatMessage(text) {
     }
 }
 
-function sendDestroyedBlock(y, x) {
+function sendMoveMessage(pos) {
     if (socket && socket.readyState === WebSocket.OPEN) {
-        const message = {
-            type: 'block-destroyed',
-            position: { y, x }
-        }
-        socket.send(JSON.stringify(message));
+        socket.send(JSON.stringify({ type: 'move', nickname: nickname, pos: pos }))
     }
 }
 
-function sendBomb(y, x) {
+function sendBombMessage(pos, time) {
     if (socket && socket.readyState === WebSocket.OPEN) {
-        const message = {
-            type: 'bomb',
-            position: { y, x },
-            nickname
-        }
-        socket.send(JSON.stringify(message));
+        socket.send(JSON.stringify({ type: 'place-bomb', nickname: nickname, pos: pos, time: time }))
     }
 }
+
+function sendExplosionMessage(explosionCells, time) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'explosion', nickname: nickname, explosionCells: explosionCells, time: time }))
+    }
+}
+
+function sendBlockDestructionMessage(destroyedBlocks, newPowerUps) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'destroy-blocks', nickname: nickname, destroyedBlocks: destroyedBlocks, newPowerUps: newPowerUps }))
+    }
+}
+
+function sendPowerUpCollectionMessage(pos, powerUpType) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'collect-powerup', nickname: nickname, pos: pos, powerUpType: powerUpType }))
+    }
+}
+
+
+// const chatMessages = document.getElementById('chat-messages')
+// const chatInput = document.getElementById('chat-input')
+
+// function addChatMessage(nick, msg) {
+//     const div = document.createElement('div')
+//     div.textContent = `${nick}: ${msg}`
+//     chatMessages.appendChild(div)
+//     chatMessages.scrollTop = chatMessages.scrollHeight
+// }
+
+
+
+// chatInput.addEventListener('keydown', (e) => {
+//     if (e.key === 'Enter') {
+//         const text = chatInput.value.trim()
+//         if (text) {
+//             sendChatMessage(text)
+//             addChatMessage(nickname, text)
+//             chatInput.value = ''
+//         }
+//     }
+// })
