@@ -208,6 +208,8 @@ wss.on('connection', (ws) => {
       const { info } = players.get(nickname);
       players.delete(nickname);
       i--
+
+      console.log(`Player ${nickname} disconnected. Remaining players: ${players.size}`);
       // Notify others player has left
       broadcast({
         type: 'player-left',

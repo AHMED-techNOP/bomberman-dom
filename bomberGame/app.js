@@ -34,7 +34,7 @@ function App() {
   const [error, setError] = useState('');
 
   const [messages, setMessages] = useState([])
-  
+
   const [serverMap, setServerMap] = useState(null)
   const [playerInfo, setPlayerInfo] = useState(null)
   const [allPlayers, setAllPlayers] = useState([])
@@ -84,7 +84,7 @@ function App() {
       console.log('Received game initialization from server')
       i = data.player.i
       console.log('Player index:', i);
-      
+
       // Store the server-provided map and player data
       setServerMap(data.map)
       setPlayerInfo(data.player)
@@ -108,25 +108,39 @@ function App() {
 
     if (data.type === 'player-moved') {
       console.log(`Player ${data.nickname} moved to position [${data.pos[0]}, ${data.pos[1]}]`)
-      setAllPlayers(prev => prev.map(p => 
-        p.nickname === data.nickname 
+      setAllPlayers(prev => prev.map(p =>
+        p.nickname === data.nickname
           ? { ...p, pos: data.pos }
           : p
       ))
     }
 
+    if (data.type === 'player-left') {
+      setAllPlayers(prev => prev.filter(p => p.nickname !== data.nickname));
+      console.log(`Player ${data.nickname} left the game. Remaining players: ${prev.length - 1}`);
+      if (data.nickname === nickname) {
+        setMyAlive(false);
+        setMyLives(0);
+        console.log(`You (${nickname}) have left the game.`);
+        // Optionally navigate to a different page or show a message
+        navigate("#/lobby");
+      }
+      console.log(`Updated allPlayers after ${data.nickname} left:`, prev);
+      return;
+    }
+
     if (data.type === 'bomb-placed') {
       console.log(`Player ${data.nickname} placed a bomb at [${data.pos[0]}, ${data.pos[1]}]`)
-      setServerBombs(prev => [...prev, { 
-        y: data.pos[0], 
-        x: data.pos[1], 
-        time: data.time, 
-        owner: data.nickname 
+      setServerBombs(prev => [...prev, {
+        y: data.pos[0],
+        x: data.pos[1],
+        time: data.time,
+        owner: data.nickname
       }])
-      
+
       // Remove bomb after 2 seconds
       setTimeout(() => {
-        setServerBombs(prev => prev.filter(b => 
+        setServerBombs(prev => prev.filter(b =>
           !(b.y === data.pos[0] && b.x === data.pos[1] && b.time === data.time)
         ))
       }, 2010)
@@ -138,7 +152,7 @@ function App() {
       const explosionTime = data.time;
       const newExplosions = data.explosionCells.map(([y, x]) => ({ y, x, time: explosionTime }));
       setServerExplosions(prev => [...prev, ...newExplosions]);
-      
+
       // Remove explosions after 400ms
       setTimeout(() => {
         setServerExplosions(prev => prev.filter(e => e.time !== explosionTime));
@@ -258,10 +272,10 @@ function App() {
 
 
 // --- Game Board Component ---
-function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, serverExplosions, serverMapChanges, setServerMapChanges, myLives, myAlive}) {
+function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, serverExplosions, serverMapChanges, setServerMapChanges, myLives, myAlive }) {
   const cols = 13, rows = 11;
   console.log(i);
-  
+
   // Wait for server data before rendering
   if (!serverMap || !playerInfo) {
     return jsx('div', { style: { color: '#fff', textAlign: 'center', padding: '2rem' } }, 'Loading game data...');
@@ -302,24 +316,24 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
   }, [allPlayers, nickname]);
   // Bomb state: array of { y, x, time } (time = Date.now() when placed)
   const [bombs, setBombs] = useState([]);
-  
+
   // Combine local bombs with server bombs
   const allBombs = [...bombs, ...serverBombs];
   // Explosion state: array of { y, x, time }
   const [explosions, setExplosions] = useState([]);
-  
+
   // Combine local explosions with server explosions
   const allExplosions = [...explosions, ...serverExplosions];
   // Map state for destructible blocks (mutable copy)
   const [gameMap, setGameMap] = useState(serverMap.map(row => row.slice()));
-  
+
   // Apply server map changes
   useEffect(() => {
     if (serverMapChanges.length === 0) return;
-    
+
     setGameMap(currentMap => {
       const newMap = currentMap.map(row => row.slice());
-      
+
       serverMapChanges.forEach(change => {
         // Remove destroyed blocks
         if (change.destroyedBlocks) {
@@ -330,26 +344,26 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
           });
         }
       });
-      
+
       return newMap;
     });
-    
+
     // Handle power-ups from server changes
     serverMapChanges.forEach(change => {
       if (change.newPowerUps && change.newPowerUps.length > 0) {
         setPowerUps(prev => [...prev, ...change.newPowerUps]);
       }
       if (change.removePowerUp) {
-        setPowerUps(prev => prev.filter(p => 
+        setPowerUps(prev => prev.filter(p =>
           !(p.y === change.removePowerUp[0] && p.x === change.removePowerUp[1])
         ));
       }
     });
-    
+
     // Clear processed changes
     setServerMapChanges([]);
   }, [serverMapChanges]);
-  
+
   // Block input if dead or game over
   const [gameOver, setGameOver] = useState(false);
   const [win, setWin] = useState(false);
@@ -507,12 +521,12 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
             }
           }
           if (newPowerUps.length > 0) setPowerUps(pus => [...pus, ...newPowerUps]);
-          
+
           // Send block destruction to server
           if (destroyedBlocks.length > 0) {
             sendBlockDestructionMessage(destroyedBlocks, newPowerUps);
           }
-          
+
           return newMap;
         });
         // Check if you are hit (handled in explosion effect above)
@@ -612,7 +626,7 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
       lives: p.lives
     }))
   ];
-  
+
   console.log('Rendering players:', players)
 
   const [playerImage, setPlayerImage] = useState('run-right');
