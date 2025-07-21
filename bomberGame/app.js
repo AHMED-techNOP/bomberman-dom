@@ -24,7 +24,7 @@ const POWER_UPS = [
   }
 ];
 
-
+let i = null
 //  ------------------------------------------------------------------------------------------------
 let hasNavigated = false
 function App() {
@@ -82,6 +82,9 @@ function App() {
 
     if (data.type === 'init') {
       console.log('Received game initialization from server')
+      i = data.player.i
+      console.log('Player index:', i);
+      
       // Store the server-provided map and player data
       setServerMap(data.map)
       setPlayerInfo(data.player)
@@ -255,8 +258,9 @@ function App() {
 
 
 // --- Game Board Component ---
-function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, serverExplosions, serverMapChanges, setServerMapChanges, myLives, myAlive }) {
+function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, serverExplosions, serverMapChanges, setServerMapChanges, myLives, myAlive}) {
   const cols = 13, rows = 11;
+  console.log(i);
   
   // Wait for server data before rendering
   if (!serverMap || !playerInfo) {
@@ -673,7 +677,7 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
       jsx('div', {
         className: 'bomberman-player-abs',
         style: {
-          backgroundImage: `url("assets/${playerImage}.gif")`,
+          backgroundImage: `url("assets/P${i}/${playerImage}.gif")`,
           transform: `translate(${pixelPos.x}px, ${pixelPos.y}px)`
         }
       },),
@@ -707,7 +711,7 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
             style: {
               background: player.color,
               backgroundImage: player.name === nickname
-                ? `url("./assets/${playerImage}.gif")`
+                ? `url("./assets/${i}${playerImage}.gif")`
                 : 'none'
             }
           }, player.name);

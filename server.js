@@ -5,6 +5,7 @@ const WebSocket = require('ws');
 
 const publicFolder = path.join(__dirname, 'bomberGame');
 
+
 const server = http.createServer((req, res) => {
   let filePath = path.join(publicFolder, req.url === '/' ? 'index.html' : req.url);
   const ext = path.extname(filePath).slice(1);
@@ -63,6 +64,7 @@ function createInitialMap() {
 
   return m;
 }
+let i = 0;
 
 wss.on('connection', (ws) => {
   console.log('✅ New client connected');
@@ -74,6 +76,8 @@ wss.on('connection', (ws) => {
 
     // First join
     if (data.type === 'join') {
+      i++
+      console.log(i)
       nickname = data.nickname;
 
       if (!map) {
@@ -88,6 +92,7 @@ wss.on('connection', (ws) => {
         id: Date.now(),
         nickname,
         pos: spawn,
+        i: i,
         color: ['#f00', '#0ff', '#f0f', '#0f0'][index % 4],
         lives: 3
       };
@@ -202,7 +207,7 @@ wss.on('connection', (ws) => {
     if (nickname && players.has(nickname)) {
       const { info } = players.get(nickname);
       players.delete(nickname);
-
+      i--
       // Notify others player has left
       broadcast({
         type: 'player-left',
