@@ -1,3 +1,8 @@
+* {
+  will-change: transform;
+}
+
+
 body {
   background: #181818;
   color: #fff;
