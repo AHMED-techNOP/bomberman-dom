@@ -2,7 +2,6 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const WebSocket = require('ws');
-const { start } = require('repl');
 
 const publicFolder = path.join(__dirname, 'bomberGame');
 
@@ -82,14 +81,21 @@ wss.on('connection', (ws) => {
       console.log(i)
       nickname = data.nickname;
 
+      if (players.size === 0 && map) {
+        starting = false
+        map = createInitialMap()
+      }
+
+
+
       if (players.has(nickname)) {
-        console.log(`❌ Player with nickname ${nickname} already exists`);
+       
         ws.send(JSON.stringify({ type: 'error', message: 'Nickname already taken' }));
         return;
       }
 
       if (starting) {
-        console.log(`❌ Game already started, ${nickname} cannot join`);
+      
         ws.send(JSON.stringify({ type: 'error', message: 'Game already started' }));
         return;
       }
@@ -131,8 +137,7 @@ wss.on('connection', (ws) => {
 
     if (data.type === 'IMG') {
       const { i, playerImage, nickname } = data;
-      console.log(`Player ${nickname} sent image: ${playerImage}`);
-      // Update player image in the map
+     
       const player = players.get(nickname);
       if (player) {
         player.info.img = `url("./assets/P${i}/${playerImage}.gif")`;
@@ -151,7 +156,7 @@ wss.on('connection', (ws) => {
 
     if (data.type === 'starting') {
       starting = true;
-      console.log('Game starting signal received');
+     
       broadcast({ type: 'starting' });
     }
 
@@ -235,6 +240,22 @@ wss.on('connection', (ws) => {
         powerUpType: data.powerUpType
       });
     }
+
+    if (data.type === 'closing') {
+    
+      if (players.has(nickname)) {
+        const { info } = players.get(nickname);
+        players.delete(nickname);
+        i--;
+        broadcast({
+          type: 'player-left',
+          nickname: nickname,
+          id: info.id
+        });
+      }
+    }
+
+
   });
 
   ws.on('close', () => {
@@ -245,7 +266,7 @@ wss.on('connection', (ws) => {
       players.delete(nickname);
       i--
 
-      console.log(`Player ${nickname} disconnected. Remaining players: ${players.size}`);
+     
       // Notify others player has left
       broadcast({
         type: 'player-left',

@@ -1,7 +1,5 @@
-// app.js
-// Use SimpleReact's globals directly (jsx, render, etc.)
 
-// --- Power-Up Types ---
+
 
 const POWER_UPS = [
   {
@@ -24,9 +22,10 @@ const POWER_UPS = [
   }
 ];
 
-let i = null
-//  ------------------------------------------------------------------------------------------------
-let hasNavigated = false
+let indexPl = null
+let waitingStart = false
+
+
 function App() {
   const { _, navigate } = useRouter()
   const [nickname, setNickname] = useState('');
@@ -88,7 +87,7 @@ function App() {
     }
 
     if (data.type === 'error') {
-      console.error(`Error from server: ${data.message}`);
+     
       setError(data.message)
       setSubmitted(false)
       setNickname('')
@@ -98,9 +97,9 @@ function App() {
 
 
     if (data.type === 'init') {
-      console.log('Received game initialization from server')
-      i = data.player.i
-      console.log('Player index:', i);
+     
+      indexPl = data.player.i
+
 
       // Store the server-provided map and player data
       setServerMap(data.map)
@@ -108,9 +107,7 @@ function App() {
       setAllPlayers(data.allPlayers)
       setMyLives(data.player.lives)
       setMyAlive(true); // player is alive at start
-      // Start the game immediately
-      setTimer('starting')
-      setCountdown(0)
+
     }
 
 
@@ -120,17 +117,16 @@ function App() {
 
 
     if (data.type === 'new-player') {
-      console.log(`New player joined: ${data.player.nickname}`)
-      console.log('New player data:', data.player)
+      
       setAllPlayers(prev => {
         const newAllPlayers = [...prev, data.player]
-        console.log('Updated allPlayers:', newAllPlayers)
+       
         return newAllPlayers
       })
     }
 
     if (data.type === 'player-moved') {
-      console.log(`Player ${data.nickname} moved to position [${data.pos[0]}, ${data.pos[1]}]`)
+     
       setAllPlayers(prev => prev.map(p =>
         p.nickname === data.nickname
           ? { ...p, pos: data.pos }
@@ -140,20 +136,18 @@ function App() {
 
     if (data.type === 'player-left') {
       setAllPlayers(prev => prev.filter(p => p.nickname !== data.nickname));
-      console.log(`Player ${data.nickname} left the game. Remaining players: ${prev.length - 1}`);
+    
       if (data.nickname === nickname) {
         setMyAlive(false);
         setMyLives(0);
-        console.log(`You (${nickname}) have left the game.`);
-        // Optionally navigate to a different page or show a message
         navigate("#/lobby");
       }
-      console.log(`Updated allPlayers after ${data.nickname} left:`, prev);
+   
       return;
     }
 
     if (data.type === 'bomb-placed') {
-      console.log(`Player ${data.nickname} placed a bomb at [${data.pos[0]}, ${data.pos[1]}]`)
+
       setServerBombs(prev => [...prev, {
         y: data.pos[0],
         x: data.pos[1],
@@ -170,7 +164,7 @@ function App() {
     }
 
     if (data.type === 'explosion-effect') {
-      console.log(`Player ${data.nickname} caused explosion at ${data.explosionCells.length} cells`)
+    
       // Add explosion cells to server explosions
       const explosionTime = data.time;
       const newExplosions = data.explosionCells.map(([y, x]) => ({ y, x, time: explosionTime }));
@@ -183,7 +177,6 @@ function App() {
     }
 
     if (data.type === 'blocks-destroyed') {
-      console.log(`Player ${data.nickname} destroyed ${data.destroyedBlocks.length} blocks`)
       // Add map changes to server state
       setServerMapChanges(prev => [...prev, {
         destroyedBlocks: data.destroyedBlocks,
@@ -234,9 +227,12 @@ function App() {
 
   if (allPlayers.length >= 2) {
 
-    setTimeout(() => {
-      sendStarting()
-    }, 20000)
+    if (!waitingStart) {
+      setTimeout(() => {
+        waitingStart = true
+        sendStarting()
+      }, 20000)
+    }
 
   }
 
@@ -259,6 +255,18 @@ function App() {
   }, [waiting, allPlayers])
 
 
+  useEffect(() => {
+
+    if (!myAlive) {
+      sendClosing(nickname)
+    }
+
+  }, [myAlive]);
+
+
+  const [colseChat, setColseChat] = useState(false)
+
+
   // Show waiting room while connecting to server
   if (submitted && (!waiting || countDown > 0)) {
     return jsx('div', { className: 'welcome-container' },
@@ -269,16 +277,29 @@ function App() {
         (waiting || allPlayers.length === 4) && jsx('p', { className: 'countdown' }, `${countDown} s`)
       ),
 
-      jsx('div', { id: 'chat-container' },
+      colseChat && jsx('div', { id: 'chat-container' },
+        jsx('button', { onClick: () => setColseChat(false), style: { position: 'fixed', top: '10px', right: '10px' } }, 'Close Chat'),
         jsx('div', { id: 'chat-messages' },
           ...messages.map(msg => showMsg(msg))
         ),
-        jsx('input', {
-          onkeydown: handelMessage,
-          id: 'chat-input',
-          placeholder: 'send message'
-        }, '')
-      )
+        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
+      ),
+      jsx('button', {
+        onClick: () => setColseChat(true),
+        style: {
+         display:  colseChat ? 'none' : 'block',
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          padding: '10px 15px',
+          fontSize: '1em',
+          borderRadius: '8px',
+          backgroundColor: '#4caf50',
+          color: 'white',
+          border: 'none',
+          cursor: 'pointer'
+        }
+      }, colseChat ? 'Close Chat' : 'Open Chat')
     )
 
   }
@@ -288,7 +309,7 @@ function App() {
     return jsx('div', null,
       jsx('div', { className: 'game-board-container' },
         jsx('h2', null, 'Bomberman Game'),
-        jsx(GameBoard, { nickname, serverMap, playerInfo, allPlayers, serverBombs, serverExplosions, serverMapChanges, setServerMapChanges, myLives, myAlive })
+        jsx(GameBoard, { nickname, serverMap, playerInfo, allPlayers, serverBombs, serverExplosions, serverMapChanges, setServerMapChanges, myLives, myAlive, indexPl })
       ), !myAlive && jsx('div', {
         style: {
           position: 'fixed',
@@ -296,7 +317,7 @@ function App() {
           left: 0,
           width: '100vw',
           height: '100vh',
-          backgroundColor: 'rgba(0, 0, 0, 0.8)', // طبقة غامقة
+          backgroundColor: 'rgba(0, 0, 0, 0.8)', 
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -320,7 +341,7 @@ function App() {
           jsx('div', { style: { fontSize: '2em', fontWeight: 'bold', marginBottom: '10px' } }, 'YOU LOSE'),
           jsx('p', { style: { color: '#bbb', fontSize: '1em', marginBottom: '30px' } }, 'Better luck next time!'),
           jsx('button', {
-            onClick: () => window.location.reload(), // أو توجّهو لصفحة البداية
+            onClick: () => window.location.reload(), 
             style: {
               padding: '10px 25px',
               fontSize: '1em',
@@ -335,13 +356,7 @@ function App() {
             onMouseOut: (e) => e.target.style.backgroundColor = '#ff4444'
           }, '🔁 Play Again')
         )
-      )
-      // jsx('div', { id: 'chat-container' },
-      //   jsx('div', { id: 'chat-messages' },
-      //     ...messages.map(msg => showMsg(msg))
-      //   ),
-      //   jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
-      // )
+      ),
     )
   }
 
@@ -372,517 +387,7 @@ function App() {
 //  ------------------------------------------------------------------------------------------------
 
 
-// --- Game Board Component ---
-function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, serverExplosions, serverMapChanges, setServerMapChanges, myLives, myAlive }) {
-  const cols = 13, rows = 11;
-  console.log(i);
 
-  // Wait for server data before rendering
-  if (!serverMap || !playerInfo) {
-    return jsx('div', { style: { color: '#fff', textAlign: 'center', padding: '2rem' } }, 'Loading game data...');
-  }
-  // Player state - initialize from server data
-  const [playerPos, setPlayerPos] = useState(playerInfo.pos);
-  // Track lives and alive state for all players
-  // const [playerLives, setPlayerLives] = useState(myLives);
-  // const [playerAlive, setPlayerAlive] = useState(myAlive); // you
-  // --- Add maxBombs state ---
-  const [maxBombs, setMaxBombs] = useState(1); // Default 1
-  // --- Add flame state for explosion range ---
-  const [flame, setFlame] = useState(1); // Default explosion range 1
-  // --- Add speed state for movement speed ---
-  const [speed, setSpeed] = useState(1); // Default speed multiplier 1
-  // --- Add pixel position state for smooth movement ---
-  const cellSize = 32; // px
-  const gap = 2; // px, matches CSS
-  const [pixelPos, setPixelPos] = useState({ x: playerPos[1] * (cellSize + gap), y: playerPos[0] * (cellSize + gap) });
-  // --- Add movement direction and moving state ---
-  const [moveDir, setMoveDir] = useState(null); // 'up', 'down', 'left', 'right', or null
-  const [moving, setMoving] = useState(false);
-  // Track power-ups on the map: {y, x, type}
-  const [powerUps, setPowerUps] = useState([]);
-  const [otherPlayers, setOtherPlayers] = useState(
-    allPlayers.filter(p => p.nickname !== nickname)
-  );
-
-  // Update otherPlayers when allPlayers changes
-  useEffect(() => {
-    console.log('allPlayers changed:', allPlayers)
-    console.log('Current nickname:', nickname)
-    const filtered = allPlayers.filter(p => p.nickname !== nickname)
-    console.log('Filtered otherPlayers:', filtered)
-    setTimeout(() => {
-      setOtherPlayers(filtered);
-    }, 0);
-  }, [allPlayers, nickname]);
-  // Bomb state: array of { y, x, time } (time = Date.now() when placed)
-  const [bombs, setBombs] = useState([]);
-
-  // Combine local bombs with server bombs
-  const allBombs = [...bombs, ...serverBombs];
-  // Explosion state: array of { y, x, time }
-  const [explosions, setExplosions] = useState([]);
-
-  // Combine local explosions with server explosions
-  const allExplosions = [...explosions, ...serverExplosions];
-  // Map state for destructible blocks (mutable copy)
-  const [gameMap, setGameMap] = useState(serverMap.map(row => row.slice()));
-
-  // Apply server map changes
-  useEffect(() => {
-    if (serverMapChanges.length === 0) return;
-
-    setGameMap(currentMap => {
-      const newMap = currentMap.map(row => row.slice());
-
-      serverMapChanges.forEach(change => {
-        // Remove destroyed blocks
-        if (change.destroyedBlocks) {
-          change.destroyedBlocks.forEach(([y, x]) => {
-            if (newMap[y] && newMap[y][x] === 2) {
-              newMap[y][x] = 0;
-            }
-          });
-        }
-      });
-
-      return newMap;
-    });
-
-    // Handle power-ups from server changes
-    serverMapChanges.forEach(change => {
-      if (change.newPowerUps && change.newPowerUps.length > 0) {
-        setPowerUps(prev => [...prev, ...change.newPowerUps]);
-      }
-      if (change.removePowerUp) {
-        setPowerUps(prev => prev.filter(p =>
-          !(p.y === change.removePowerUp[0] && p.x === change.removePowerUp[1])
-        ));
-      }
-    });
-
-    // Clear processed changes
-    setServerMapChanges([]);
-  }, [serverMapChanges]);
-
-  // Block input if dead or game over
-  const [gameOver, setGameOver] = useState(false);
-  const [win, setWin] = useState(false);
-
-  // Detect player death from explosion (now: lose a life, die if 0)
-  const [hitExplosions, setHitExplosions] = useState(new Set());
-
-
-  //  ------------------------------------------------------------------------------------------------
-
-
-  // Handle keyboard movement and bomb drop
-  useEffect(() => {
-    if (!myAlive || gameOver) return;
-    function handleKey(e) {
-      if (moving) return; // Ignore input while moving
-      let dir = null;
-      if (e.key === 'ArrowUp') dir = 'up';
-      else if (e.key === 'ArrowDown') dir = 'down';
-      else if (e.key === 'ArrowLeft') dir = 'left';
-      else if (e.key === 'ArrowRight') dir = 'right';
-      else if (e.key === ' ' || e.key === 'Spacebar') {
-        // --- Use nickname for bomb owner ---
-        const playerBombs = bombs.filter(b => b.owner === nickname).length;
-        if (
-          !allBombs.some(b => b.y === playerPos[0] && b.x === playerPos[1]) &&
-          (maxBombs === Infinity || playerBombs < maxBombs)
-        ) {
-          const bombTime = Date.now();
-          setBombs(bombs => [...bombs, { y: playerPos[0], x: playerPos[1], time: bombTime, owner: nickname }]);
-          // Send bomb placement to server
-          sendBombMessage([playerPos[0], playerPos[1]], bombTime);
-        }
-        return;
-      } else {
-        return;
-      }
-      if (dir) {
-        setMoveDir(dir);
-      }
-    }
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [playerPos, gameMap, bombs, myAlive, gameOver, maxBombs, powerUps, nickname, moving]);
-
-
-  //  ------------------------------------------------------------------------------------------------
-
-
-  // Animate movement with requestAnimationFrame
-  useEffect(() => {
-    if (!moveDir || moving) return;
-    let [y, x] = playerPos;
-    let targetY = y, targetX = x;
-    if (moveDir === 'up') targetY--;
-    else if (moveDir === 'down') targetY++;
-    else if (moveDir === 'left') targetX--;
-    else if (moveDir === 'right') targetX++;
-    // Check bounds and collision
-    if (!(gameMap[targetY] && gameMap[targetY][targetX] === 0)) {
-      setMoveDir(null);
-      return;
-    }
-    setMoving(true);
-    const start = { ...pixelPos };
-    const end = {
-      x: targetX * (cellSize + gap),
-      y: targetY * (cellSize + gap)
-    };
-    const duration = 120 / speed; // ms, adjusted by speed multiplier
-    const startTime = performance.now();
-    function animate(now) {
-      const elapsed = now - startTime;
-      const t = Math.min(1, elapsed / duration);
-      setPixelPos({
-        x: start.x + (end.x - start.x) * t,
-        y: start.y + (end.y - start.y) * t
-      });
-      if (t < 1) {
-        requestAnimationFrame(animate);
-      } else {
-        // Snap to grid, update logical position
-        setPlayerPos([targetY, targetX]);
-        // Send movement to server
-        sendMoveMessage([targetY, targetX]);
-        // --- Check for power-up at new position ---
-        const puIdx = powerUps.findIndex(p => p.y === targetY && p.x === targetX);
-        if (puIdx !== -1) {
-          const pu = powerUps[puIdx];
-          // Remove power-up from map
-          setPowerUps(pus => pus.filter((_, i) => i !== puIdx));
-          // Send power-up collection to server
-          sendPowerUpCollectionMessage([targetY, targetX], pu.type);
-          // Apply power-up effect
-          if (pu.type === 'bomb') {
-            setMaxBombs(maxBombs => maxBombs + 1);
-          } else if (pu.type === 'flame') {
-            // Increase explosion range by 4
-            setFlame(flame => flame + 1);
-          } else if (pu.type === 'speed') {
-            // Increase movement speed by 0.5
-            setSpeed(speed => speed + 0.5);
-          }
-        }
-        setMoving(false);
-        setMoveDir(null);
-      }
-    }
-    requestAnimationFrame(animate);
-    // eslint-disable-next-line
-  }, [moveDir]);
-
-
-  //  ------------------------------------------------------------------------------------------------
-
-
-  // Bomb explosion logic
-  useEffect(() => {
-    if (allBombs.length === 0) return;
-    const now = Date.now();
-    const timers = bombs.map(bomb => {
-      const delay = Math.max(0, 2000 - (now - bomb.time));
-      return setTimeout(() => {
-        // Explosion logic
-        const explosionCells = [[bomb.y, bomb.x]];
-        // Directions: up, down, left, right
-        const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-        for (let [dy, dx] of dirs) {
-          for (let i = 1; i <= flame; i++) { // Explosion range = flame
-            const ny = bomb.y + dy * i, nx = bomb.x + dx * i;
-            if (!gameMap[ny] || gameMap[ny][nx] === undefined) break;
-            if (gameMap[ny][nx] === 1) break; // Wall blocks explosion
-            explosionCells.push([ny, nx]);
-            if (gameMap[ny][nx] === 2) break; // Stop at destructible block
-          }
-        }
-        const explosionTime = Date.now();
-        setExplosions(explosions => [...explosions, ...explosionCells.map(([y, x]) => ({ y, x, time: explosionTime }))]);
-        // Send explosion to server
-        sendExplosionMessage(explosionCells, explosionTime);
-        // Remove destructible blocks and spawn power-ups
-        setGameMap(gameMap => {
-          const newMap = gameMap.map(row => row.slice());
-          const newPowerUps = [];
-          const destroyedBlocks = [];
-          for (let [y, x] of explosionCells) {
-            if (newMap[y][x] === 2) {
-              newMap[y][x] = 0;
-              destroyedBlocks.push([y, x]);
-              // --- Randomly spawn a power-up ---
-              if (Math.random() < 0.3) { // 30% chance
-                const pu = POWER_UPS[Math.floor(Math.random() * POWER_UPS.length)];
-                newPowerUps.push({ y, x, type: pu.type });
-              }
-            }
-          }
-          if (newPowerUps.length > 0) setPowerUps(pus => [...pus, ...newPowerUps]);
-
-          // Send block destruction to server
-          if (destroyedBlocks.length > 0) {
-            sendBlockDestructionMessage(destroyedBlocks, newPowerUps);
-          }
-
-          return newMap;
-        });
-        // Check if you are hit (handled in explosion effect above)
-        // Check if other players are hit (simulate random movement for demo)
-        setOtherPlayers(players => players.map(p => {
-          if (!p.alive) return p;
-          // For demo: 10% chance to move randomly, else stay
-          let pos = p.pos;
-          if (Math.random() < 0.1) {
-            const moves = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-            for (let [dy, dx] of moves) {
-              const ny = p.pos[0] + dy, nx = p.pos[1] + dx;
-              if (gameMap[ny] && gameMap[ny][nx] === 0) {
-                pos = [ny, nx];
-                break;
-              }
-            }
-          }
-          if (explosionCells.some(([y, x]) => y === pos[0] && x === pos[1])) {
-            if (p.lives > 1) {
-              return { ...p, lives: p.lives - 1 };
-            } else {
-              return { ...p, lives: 0, alive: false };
-            }
-          }
-          return { ...p, pos };
-        }));
-        setBombs(bombs => bombs.filter(b => b !== bomb));
-      }, delay);
-    });
-    return () => timers.forEach(t => clearTimeout(t));
-  }, [bombs, gameMap, playerPos, nickname, flame]);
-
-
-  //  ------------------------------------------------------------------------------------------------
-
-
-  // Remove explosion visuals after 400ms
-  useEffect(() => {
-    if (allExplosions.length === 0) return;
-    const now = Date.now();
-    const timers = allExplosions.map(ex => {
-      const delay = Math.max(0, 400 - (now - ex.time));
-      return setTimeout(() => {
-        setExplosions(explosions => explosions.filter(e => e !== ex));
-      }, delay);
-    });
-    return () => timers.forEach(t => clearTimeout(t));
-  }, [allExplosions]);
-
-  // Remove bombs after 2 seconds
-  // useEffect(() => {
-  //   if (allBombs.length === 0) return;
-  //   const now = Date.now();
-  //   const timers = allBombs.map(bomb => {
-  //     const delay = Math.max(0, 2010 - (now - bomb.time));
-  //     return setTimeout(() => {
-  //       setBombs(bombs => bombs.filter(b => b !== bomb));
-  //     }, delay);
-  //   });
-  //   return () => timers.forEach(t => clearTimeout(t));
-  // }, [allBombs]);
-
-
-  //  ------------------------------------------------------------------------------------------------
-
-
-  // Win/lose logic
-  // Comment out the win/lose logic useEffect
-  /*
-  useEffect(() => {
-    // Only check win/lose if there are at least 2 players
-    if (allPlayers.length < 2) return;
-
-    const aliveOthers = otherPlayers.filter(p => p.alive).length;
-    if ((!myAlive || myLives === 0) && !gameOver) {
-      setGameOver(true);
-      setWin(false);
-    } else if (myAlive && myLives > 0 && aliveOthers === 0 && !gameOver) {
-      setGameOver(true);
-      setWin(true);
-    }
-  }, [myAlive, myLives, otherPlayers, gameOver, allPlayers.length]);
-  */
-
-  //  ------------------------------------------------------------------------------------------------
-
-
-  // All players (for rendering) - use server data
-  const players = [
-    { name: nickname, color: playerInfo.color, pos: playerPos, alive: myAlive, lives: myLives, i: i },
-    ...allPlayers.filter(p => p.nickname !== nickname).map(p => ({
-      name: p.nickname,
-      color: p.color,
-      pos: p.pos,
-      alive: p.alive !== undefined ? p.alive : true,
-      lives: p.lives,
-      i: p.i,
-      img: p.img || `assets/P${p.i}/run-down.gif` // Default to run-down if no image provided
-    }))
-  ];
-
-  console.log('Rendering players:', players)
-
-  const [playerImage, setPlayerImage] = useState('run-right');
-
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'ArrowLeft') {
-        setPlayerImage('run-left');
-        sendImg(i, 'run-left', nickname)
-      }
-      if (e.key === 'ArrowRight') {
-        setPlayerImage('run-right');
-        sendImg(i, 'run-right', nickname);
-      }
-      if (e.key === 'ArrowDown') {
-        setPlayerImage('run-down');
-        sendImg(i, 'run-down', nickname);
-      }
-      if (e.key === 'ArrowUp') {
-        setPlayerImage('run-up');
-        sendImg(i, 'run-up', nickname);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyup => {
-      if (handleKeyup.key === 'ArrowLeft' || handleKeyup.key === 'ArrowRight') {
-        setPlayerImage('run-down'); // Default to down when not moving
-        sendImg(i, 'run-down', nickname);
-      }
-    })
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
-  //  ------------------------------------------------------------------------------------------------
-
-  // Update pixel position when playerPos changes (snap to grid)
-  useEffect(() => {
-    setTimeout(() => {
-      setPixelPos({ x: playerPos[1] * (cellSize + gap), y: playerPos[0] * (cellSize + gap) });
-    }, 0);
-  }, [playerPos]);
-  // Render grid
-
-
-
-  // ------------------------------------------------------------------------------------------------
-
-
-
-  // --- Heart animation state ---
-  const [heartScale, setHeartScale] = useState(1);
-  useEffect(() => {
-    let frame;
-    let start;
-    function animate(now) {
-      if (!start) start = now;
-      const t = ((now - start) / 1000) % 1; // 1s loop
-      // Pulse between 1 and 1.25 scale
-      const scale = 1 + 0.15 * Math.sin(t * 2 * Math.PI);
-      setHeartScale(scale);
-      frame = requestAnimationFrame(animate);
-    }
-    frame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frame);
-  }, []);
-
-  return jsx('div', {
-    className: 'bomberman-board'
-  },
-
-    // --- Player stats bar at the top ---
-    jsx('div', {
-      className: 'player-stats-bar',
-      style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '2em', fontSize: '1.3em', marginBottom: '1.2em', background: 'rgba(30,30,30,0.95)', borderRadius: '0.7em', padding: '0.7em 1em', boxShadow: '0 2px 8px #0008', border: '2px solid #444' }
-    },
-      jsx('span', { style: { display: 'flex', alignItems: 'center', gap: '0.4em' } },
-        jsx('span', {
-          style: {
-            display: 'inline-block',
-            transform: `scale(${heartScale})`,
-            transition: 'none',
-            willChange: 'transform',
-          }
-        }, '❤️'),
-        jsx('span', { style: { fontWeight: 'bold', color: '#f55' } }, myLives)
-      ),
-      jsx('span', { style: { display: 'flex', alignItems: 'center', gap: '0.4em' } }, '💣', jsx('span', { style: { fontWeight: 'bold', color: '#fff' } }, maxBombs === Infinity ? '∞' : maxBombs)),
-      jsx('span', { style: { display: 'flex', alignItems: 'center', gap: '0.4em' } }, '🔥', jsx('span', { style: { fontWeight: 'bold', color: '#ff0' } }, flame)),
-      jsx('span', { style: { display: 'flex', alignItems: 'center', gap: '0.4em' } }, '⚡', jsx('span', { style: { fontWeight: 'bold', color: '#0ff' } }, speed.toFixed(1) + 'x'))
-    ),
-
-    gameOver && jsx('div', {
-      className: 'game-overlay',
-      style: { zIndex: 10 }
-    },
-      jsx('h1', null, win ? 'You Win!' : 'Game Over'),
-      jsx('button', { onClick: () => window.location.reload(), style: { marginTop: '1rem', padding: '0.5rem 1.5rem', fontSize: '1.2rem', borderRadius: '0.5rem', background: '#333', color: '#fff', border: 'none' } }, 'Restart')
-    ),
-    jsx('div', {
-      className: 'bomberman-grid',
-
-    },
-      // --- Absolutely positioned player ---
-      jsx('div', {
-        className: 'bomberman-player-abs',
-        style: {
-          backgroundImage: `url("assets/P${i}/${playerImage}.gif")`,
-          transform: `translate(${pixelPos.x}px, ${pixelPos.y}px)`
-        }
-      },),
-      // --- Render the rest of the grid as before ---
-      ...gameMap.reduce((acc, row, y) => acc.concat(row.map((cell, x) => {
-        let content = null;
-        if (cell === 1) content = jsx('div', { className: 'bomberman-wall' });
-        else if (cell === 2) content = jsx('div', { className: 'bomberman-block' });
-        // Bomb
-        const bomb = allBombs.find(b => b.y === y && b.x === x);
-        if (bomb) {
-          content = jsx('div', { className: 'bomberman-bomb' });
-        }
-        // Explosion
-        const explosion = allExplosions.find(e => e.y === y && e.x === x);
-        if (explosion) {
-          content = jsx('div', { className: 'bomberman-explosion' });
-        }
-        // --- Render power-up if present ---
-        const pu = powerUps.find(p => p.y === y && p.x === x);
-        if (pu) {
-          const puDef = POWER_UPS.find(p => p.type === pu.type);
-          content = jsx('div', { className: 'bomberman-powerup' }, puDef ? puDef.label : '?');
-        }
-        // Player icon (for other players only)
-        const player = players.find(p => p.pos[0] === y && p.pos[1] === x && p.alive && p.name !== nickname);
-        if (player) {
-          console.log(`Rendering player ${player.name} at position [${y}, ${x}]`)
-          content = jsx('div', {
-            className: 'bomberman-player',
-            style: {
-              backgroundImage: player.img
-            }
-          }, '');
-        }
-        return jsx('div', {
-          key: `${y}-${x}`,
-          className: 'bomberman-cell'
-        }, content);
-      })), [])
-    )
-  );
-}
 window.App = App;
 document.addEventListener('DOMContentLoaded', () => {
   render();
