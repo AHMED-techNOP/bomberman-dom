@@ -114,7 +114,7 @@ function App() {
     }
 
 
-    if( data.type === 'IMG') {
+    if (data.type === 'IMG') {
       setAllPlayers(data.allPlayers)
     }
 
@@ -261,22 +261,26 @@ function App() {
 
   // Show waiting room while connecting to server
   if (submitted && (!waiting || countDown > 0)) {
-    return jsx('div', null,
+    return jsx('div', { className: 'welcome-container' },
       jsx('div', { className: 'welcome' },
         jsx('h1', null, `Welcome, ${nickname}!`),
-        jsx('p', null, 'Connecting to server...'),
-        jsx('p', null, `${allPlayers.length} player${allPlayers.length === 1 ? "" : "s"} `),
-        jsx('p', { style: { fontSize: '0.9em', color: '#aaa' } }, 'Waiting for game initialization...'),
-        (waiting || allPlayers.length === 4) && jsx('p', null, `${countDown} /s`),
-
+        jsx('p', { className: 'player-count' }, `${allPlayers.length} player${allPlayers.length === 1 ? "" : "s"}`),
+        jsx('p', { className: 'waiting-msg' }, 'Waiting for game initialization...'),
+        (waiting || allPlayers.length === 4) && jsx('p', { className: 'countdown' }, `${countDown} s`)
       ),
+
       jsx('div', { id: 'chat-container' },
         jsx('div', { id: 'chat-messages' },
           ...messages.map(msg => showMsg(msg))
         ),
-        jsx('input', { onkeydown: handelMessage, id: 'chat-input', placeholder: 'send message' }, '')
+        jsx('input', {
+          onkeydown: handelMessage,
+          id: 'chat-input',
+          placeholder: 'send message'
+        }, '')
       )
     )
+
   }
 
   // Show game board when server data is available
@@ -285,7 +289,53 @@ function App() {
       jsx('div', { className: 'game-board-container' },
         jsx('h2', null, 'Bomberman Game'),
         jsx(GameBoard, { nickname, serverMap, playerInfo, allPlayers, serverBombs, serverExplosions, serverMapChanges, setServerMapChanges, myLives, myAlive })
-      ),
+      ), !myAlive && jsx('div', {
+        style: {
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)', // طبقة غامقة
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          animation: 'fadeIn 0.5s ease-in-out'
+        }
+      },
+        // Box
+        jsx('div', {
+          style: {
+            backgroundColor: '#1e1e1e',
+            color: 'white',
+            padding: '40px 60px',
+            borderRadius: '15px',
+            textAlign: 'center',
+            boxShadow: '0 0 30px rgba(255, 0, 0, 0.5)',
+            animation: 'scaleIn 0.5s ease-in-out'
+          }
+        },
+          jsx('div', { style: { fontSize: '3em', marginBottom: '20px' } }, '💀'),
+          jsx('div', { style: { fontSize: '2em', fontWeight: 'bold', marginBottom: '10px' } }, 'YOU LOSE'),
+          jsx('p', { style: { color: '#bbb', fontSize: '1em', marginBottom: '30px' } }, 'Better luck next time!'),
+          jsx('button', {
+            onClick: () => window.location.reload(), // أو توجّهو لصفحة البداية
+            style: {
+              padding: '10px 25px',
+              fontSize: '1em',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              backgroundColor: '#ff4444',
+              color: 'white',
+              transition: 'background 0.3s'
+            },
+            onMouseOver: (e) => e.target.style.backgroundColor = '#cc0000',
+            onMouseOut: (e) => e.target.style.backgroundColor = '#ff4444'
+          }, '🔁 Play Again')
+        )
+      )
       // jsx('div', { id: 'chat-container' },
       //   jsx('div', { id: 'chat-messages' },
       //     ...messages.map(msg => showMsg(msg))
@@ -696,11 +746,11 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
       }
       if (e.key === 'ArrowDown') {
         setPlayerImage('run-down');
-        sendImg(i, 'run-down' , nickname);
+        sendImg(i, 'run-down', nickname);
       }
       if (e.key === 'ArrowUp') {
         setPlayerImage('run-up');
-        sendImg(i, 'run-up' , nickname);
+        sendImg(i, 'run-up', nickname);
       }
     };
 
@@ -708,7 +758,7 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
     window.addEventListener('keyup', handleKeyup => {
       if (handleKeyup.key === 'ArrowLeft' || handleKeyup.key === 'ArrowRight') {
         setPlayerImage('run-down'); // Default to down when not moving
-        sendImg(i, 'run-down' , nickname);
+        sendImg(i, 'run-down', nickname);
       }
     })
 
@@ -750,7 +800,7 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
     className: 'bomberman-board'
   },
 
-   // --- Player stats bar at the top ---
+    // --- Player stats bar at the top ---
     jsx('div', {
       className: 'player-stats-bar',
       style: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '2em', fontSize: '1.3em', marginBottom: '1.2em', background: 'rgba(30,30,30,0.95)', borderRadius: '0.7em', padding: '0.7em 1em', boxShadow: '0 2px 8px #0008', border: '2px solid #444' }
@@ -818,7 +868,7 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
           content = jsx('div', {
             className: 'bomberman-player',
             style: {
-              backgroundImage:  player.img
+              backgroundImage: player.img
             }
           }, '');
         }
