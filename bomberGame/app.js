@@ -786,15 +786,18 @@ function GameBoard({ nickname, serverMap, playerInfo, allPlayers, serverBombs, s
   const [heartScale, setHeartScale] = useState(1);
   useEffect(() => {
     let frame;
-    function animate() {
-      const t = Date.now() / 1000;
-      setHeartScale(1 + 0.15 * Math.sin(t * 2 * Math.PI));
+    let start;
+    function animate(now) {
+      if (!start) start = now;
+      const t = ((now - start) / 1000) % 1; // 1s loop
+      // Pulse between 1 and 1.25 scale
+      const scale = 1 + 0.15 * Math.sin(t * 2 * Math.PI);
+      setHeartScale(scale);
       frame = requestAnimationFrame(animate);
     }
     frame = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(frame);
   }, []);
-
 
   return jsx('div', {
     className: 'bomberman-board'
